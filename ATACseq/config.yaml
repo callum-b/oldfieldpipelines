@@ -1,0 +1,13 @@
+genome: DATA/GENOMES/GRCh38_noalt_as/GRCh38_noalt_as
+chrom_sizes: DATA/GENOMES/HG38_chrom_sizes.tsv
+excluded_regions: DATA/GENOMES/DAC_excl_HG38_71570285.bed
+
+samples:
+  fastq: 
+    - CTCF_H3K9ac/CTCF_TEST_T1_pos_2
+    - CTCF_H3K9ac/CTCF_TEST_T1_pos_3
+  peaks:
+    - CTCF_H3K9ac/CTCF_TEST_T1_pos_2
+    - CTCF_H3K9ac/CTCF_TEST_T1_pos_3 
+
+macs3_callbroadpeak_q: 0.05
