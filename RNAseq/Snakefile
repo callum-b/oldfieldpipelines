@@ -1,0 +1,212 @@
+"""
+
+@version 0.1
+@author: C Burnard
+
+Pipeline under development for A Oldfield
+Heavily inspired by R Raffel's pipeline
+Align RNA-Seq reads onto HG38, processed mapped reads and call differentially expressed genes (+ other enrichment analyses)
+
+Tools:
+  awk
+  fastq_illumina_filter
+  fastQC 
+  bowtie2 
+  samtools 
+  deeptools 
+  MACS3 
+  
+
+--- HOW TO RUN ME ---
+This Snakefile expects a certain directory architecture to run.
+A "working directory" contains three directories: DATA, FIGURES and SCRIPTS. This Snakefile should be located in the working directory, as should its associated config.yaml file.
+YAML is meant to be a user-friendly and readable version of XML. Its syntax guide can be found it here: https://yaml.org/refcard.html 
+Your config.yaml file indicates which data files to process, as well as the various parametres for the tools you will be using.
+
+Inside your DATA directory, files should be sorted first by their data types. Normally, you will be starting from .fq.gz files (not .fastq.gz, nor .fq, nor .fastq), so they should be in a FASTQ directory.
+When indicating the path to your .fq files, only specify the relative path from the FASTQ directory, stripped of file extensions. For example, if you have a directory labelled "CTCF" because that is what you are analysing, 
+        you need to indicate only "CTCF/CTCF_T1_pos_2" in your config file. Do not indicate the absolute path (something like "/home/your.name/ChIP-seq/DATA/FASTQ/CTCF/CTCF_T1_pos_2.fq.gz").
+
+This pipeline will then create other directories in DATA according to the output formats, like BAM, BED, etc. It will also attempt to recreate any subdirectories that were contained in your FASTQ directory.
+
+
+"""
+
+### BASIC CHECKS & IMPORTS ###
+configfile: "config.yaml"
+
+from multiprocessing import cpu_count
+import glob
+import re
+import math
+# import os
+
+
+### GLOBAL VARIABLES ###
+MAX_CORES = cpu_count()
+
+wildcard_constraints:
+    sample_sp = r".+(?<!_pe)", # use this wildcard when using software that requires specific input/options for single end or paired end reads
+    pe = r"(_pe){0,1}",
+    rep = r"[0-9]+",
+    release = r"[0-9]+",
+    anyfile = r".+(?<!\.gz)"
+
+
+### FUNCTIONS ###
+
+## General functions
+
+
+## Rule-specific input functions
+def get_multiqc_fastqcs(wildcards):
+    return "0"
+def get_fingerprint_bam_bams(wildcards):
+    return "0"
+def get_fingerprint_bam_bais(wildcards):
+    return "0"
+
+
+
+
+
+### BIG PICTURE RULES ###
+## These will be the rules you generally run through the command line.
+
+## AUTODETECT RULES
+## These use the file naming and folder architecture to find which data files to run on automatically
+
+
+
+## USER SPECIFIED RULES
+## These use the config file to find which data files to run on
+
+rule first_test:
+    input:
+        "DATA/TEMP/v47/first_test/D1_1_Aligned.sortedByCoord.out.bam"
+
+
+
+### SPECIFIC RULES ###
+## These run each specific tool needed to complete the whole pipeline.
+
+## Utility
+
+# rule gunzip_file: ## to confusing :/
+#     input:
+#         "{anyfile}.gz"
+#     output:
+#         "{anyfile}"
+#     log:
+#         "snakemake_logs/gunzip_file/{anyfile}.log"
+#     priority: -5
+#     shell:
+#         "gunzip {input} 2>{log}"
+
+## Quality Control
+
+rule fastQC:
+    input:
+        "DATA/FASTQ/{sample}.fq.gz"
+    output:
+        "DATA/FASTQ/{sample}_fastqc.html",
+        "DATA/FASTQ/{sample}_fastqc.zip"
+    log:
+        "snakemake_logs/fastQC/{sample}.log"
+    shell:
+        "fastqc {input} 2>{log}"
+
+rule multiQC:
+    input:
+        get_multiqc_fastqcs
+    output:
+        "FIGURES/QC/multiqc_fastqc_report.html"
+    log:
+        "snakemake_logs/fastQC/multiqc_fastqc.log"
+    shell:
+        "multiQC -n {output} DATA/FASTQ/"
+
+rule fingerprint_bam:
+    input:
+        bams=get_fingerprint_bam_bams,
+        bais=get_fingerprint_bam_bais
+    output:
+        "FIGURES/QC/{expconds}_fingerprint.svg"
+    log:
+        "snakemake_logs/fingerprint_bam/{expconds}.log"
+    shell:
+        "plotFingerprint --bamfiles {input.bams} -o {output} --ignoreDuplicates --plotTitle 'Fingerprint of {wildcards.expconds} ChIP-seq data' 2>{log}"
+
+
+## FastQ prep and alignment
+
+rule illumina_filtering:
+    input: 
+        "DATA/FASTQ/{sample}.fq.gz"
+    output: 
+        temp("DATA/FASTQ/{sample}.filtered.fq.gz")
+    log: 
+        "snakemake_logs/illumina_filtering/{sample}.log"
+    shell:  "gunzip -c {input} | awk -f SCRIPTS/clean_fastq.awk | " ## clean_fastq removes any read with under 20bp. Originally was just empty lines (crashes fastq_illumina_filter) but might as well clean some more while we're in the file.
+            "SCRIPTS/fastq_illumina_filter -vvN 2>{log} | "
+            "gzip > {output}"
+
+rule wget_genome_sequence:
+    output:
+        temp("GRCh38.v{release}.primary_assembly.genome.fa")
+    log:
+        "snakemake_logs/wget_genome_v{release}_sequence.log"
+    priority: 2
+    shell:
+        "wget https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_{wildcards.release}/GRCh38.primary_assembly.genome.fa.gz ; mv GRCh38.primary_assembly.genome.fa.gz {output}.gz ; gunzip {output}.gz"
+
+rule wget_genome_annotation:
+    output:
+        temp("gencode.v{release}.annotation.gtf")
+    log:
+        "snakemake_logs/wget_genome_v{release}_annotation.log"
+    priority: 2
+    shell:
+        "wget https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_{wildcards.release}/gencode.v{wildcards.release}.annotation.gtf.gz ; gunzip {output}.gz"
+
+rule STAR_build_genome_index:
+    input:
+        g="GRCh38.v{release}.primary_assembly.genome.fa",
+        a="gencode.v{release}.annotation.gtf"
+    output:
+        "DATA/GENOMES/STAR/v{release}/exonInfo.tab"
+    log:
+        "snakemake_logs/STAR_build_genome_v{release}_index.log"
+    priority: 2
+    threads: 2 # NTHREADS
+    shell:
+        "STAR --runThreadN {threads} --runMode genomeGenerate --genomeDir DATA/GENOMES/STAR/v{wildcards.release} --genomeFastaFiles {input.g} --sjdbGTFfile {input.a} ; cp {input.a} DATA/GENOMES/"
+
+rule STAR_align:
+    input:
+        fw="DATA/FASTQ/{sample_sp}_fw.filtered.fq.gz",
+        rv="DATA/FASTQ/{sample_sp}_rv.filtered.fq.gz",
+        g="DATA/GENOMES/STAR/v{release}/exonInfo.tab"
+    output:
+        "DATA/TEMP/v{release}/{sample_sp}_Aligned.sortedByCoord.out.bam" ## might need to list out all the output files STAR creates (a lot) https://sydney-informatics-hub.github.io/training-RNAseq/03-MapReads/index.html
+    log:
+        "snakemake_logs/STAR_align/{sample_sp}_v{release}.log"
+    priority: 2
+    threads: 16 # NTHREADS
+    shell:
+        "STAR --runThreadN {threads} "
+        "--readFilesCommand zcat "
+        "--readFilesIn {input.fw} {input.rv} "
+        "--genomeDir DATA/GENOMES/STAR/v{wildcards.release}/ "
+        "--sjdbGTFfile DATA/GENOMES/gencode.v{wildcards.release}.annotation.gtf "
+
+        "--outFileNamePrefix DATA/TEMP/v{wildcards.release}/{wildcards.sample_sp}"
+        
+        "--quantMode GeneCounts "
+        "--outReadsUnmapped Fastx "
+        "--outMultimapperOrder Random "
+        "--outSAMtype BAM SortedByCoordinate --outSAMattributes All "
+        "--outWigType wiggle "
+
+
+
