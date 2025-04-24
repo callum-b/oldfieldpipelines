@@ -1,0 +1,595 @@
+"""
+
+@version 0.1
+@author: C Burnard
+
+Pipeline under development for A Oldfield
+Heavily inspired by R Raffel's pipeline
+Align PAIRED-END ATAC-Seq reads onto HG38, processed mapped reads and call peaks (+ other enrichment analyses)
+
+Tools:
+  awk
+  fastq_illumina_filter
+  fastQC 
+  bowtie2 
+  samtools 
+  deeptools 
+  MACS3 
+  
+
+--- HOW TO RUN ME ---
+This Snakefile expects a certain directory architecture to run.
+A "working directory" contains three directories: DATA, FIGURES and SCRIPTS. This Snakefile should be located in the working directory, as should its associated config.yaml file.
+YAML is meant to be a user-friendly and readable version of XML. Its syntax guide can be found it here: https://yaml.org/refcard.html 
+Your config.yaml file indicates which data files to process, as well as the various parametres for the tools you will be using.
+
+Inside your DATA directory, files should be sorted first by their data types. Normally, you will be starting from .fq.gz files (not .fastq.gz, nor .fq, nor .fastq), so they should be in a FASTQ directory.
+When indicating the path to your .fq files, only specify the relative path from the FASTQ directory, stripped of file extensions. For example, if you have a directory labelled "CTCF" because that is what you are analysing, 
+        you need to indicate only "CTCF/CTCF_T1_pos_2" in your config file. Do not indicate the absolute path (something like "/home/your.name/ChIP-seq/DATA/FASTQ/CTCF/CTCF_T1_pos_2.fq.gz").
+
+This pipeline will then create other directories in DATA according to the output formats, like BAM, BED, etc. It will also attempt to recreate any subdirectories that were contained in your FASTQ directory.
+
+
+"""
+
+### BASIC CHECKS & IMPORTS ###
+configfile: "config.yaml"
+
+from multiprocessing import cpu_count
+import numpy as np
+import glob
+import re
+import math
+# import os
+
+
+### GLOBAL VARIABLES ###
+MAX_CORES = cpu_count()
+
+wildcard_constraints:
+    sample_sp = r".+(?<!_pe)", # use this wildcard when using software that requires specific input/options for single end or paired end reads
+    rep = r"[0-9]+",
+    pe = r"(_pe){0,1}"
+
+
+### FUNCTIONS ###
+
+## General functions
+
+def get_ATACseq_batches_in_dir(path): ## path should probably be "DATA/FASTQ"
+    flist = [f.split("/")[-1].split(".")[1] for f in glob.glob(path+"/*.fq.gz")]
+    return sorted(set(flist))
+
+def cohen_d(a,b):
+    float_a = []
+    float_b = []
+    for x in a:
+        try:
+            float_a.append(float(x))
+        except ValueError:
+            return "NAN"
+    for y in b:
+        try:
+            float_b.append(float(y))
+        except ValueError:
+            return "NAN"
+    try:
+        res = (np.mean(float_a) - np.mean(float_b)) / (
+                    ((len(float_a)-1)*np.stdla(float_a, ddof=1) ** 2 + (len(float_b)-1)*np.std(float_b, ddof=1) ** 2) / (len(float_a) + len(float_b) -2)
+                        ) ** 0.5
+    except (ZeroDivisionError, AttributeError):
+        res=0
+    return res
+
+def effect_size_mmb(inpath, outpath):
+    r = re.compile("start_*")
+    with open(outpath, 'w') as out:
+        with open(inpath, 'r') as f:
+            header = f.readline().strip().split("\t")
+            ntracks = len(header) -3 - len(list(filter(r.match, header)))
+            tracknames = header[3 : 4 + ntracks]
+            # print(tracknames)
+            batches=[]
+            rootnames=[]
+            first_f = tracknames.pop(0).split("/")[-1]
+            while tracknames: # this whole loop is just to get batches, which is a list of N values, where N is the number of batches of bws that were mapped, and each value of N is the number of bws in that batch
+                n_in_batch = 1
+                first_split = re.split(r'_\d+', first_f)
+                rootnames.append(first_split[0])
+                # print("First: " + first_split[0])
+                next_f = tracknames.pop(0).split("/")[-1]
+                next_split = re.split(r'_\d+', next_f)
+                while first_split[0] == next_split[0]:
+                    # print("Next: " + next_split[0])
+                    n_in_batch+=1
+                    if tracknames:
+                        next_f = tracknames.pop(0).split("/")[-1]
+                        next_split = re.split(r'_\d+', next_f)
+                    else:
+                        next_f = "time to exit!"
+                        next_split = ["wheeeeeeee"]
+                batches.append(n_in_batch)
+                first_f = next_f
+            myheader = ""
+            for x in range(len(rootnames)-1):
+                for y in range(1,len(rootnames[x:])):
+                    myheader = myheader + "cohen_d_"+rootnames[x]+"_vs_"+rootnames[x+y] + "\t"
+            out.write(myheader.strip()+"\n")
+            for myline in f.readlines():
+                myline=myline.split("\t")[3 : 4 + ntracks]
+                vals_in_batches = []
+                prev=0
+                results = []
+                for mybatch in batches:
+                    vals_in_batches.append(myline[prev:prev+mybatch])
+                    prev+=mybatch
+                # print("Vals this line: ")
+                # print(vals_in_batches)
+                for i in range(len(vals_in_batches)-1):
+                    for j in range(1,len(vals_in_batches[i:])):
+                        results.append(cohen_d(vals_in_batches[i], vals_in_batches[i+j]))
+                out.write("\t".join(map(str, results)) + "\n" ) ## need to pretty print list of values but this should be good?
+
+
+## Rule-specific input functions
+
+def get_fingerprint_bam_bams(wildcards):
+    # return [bam_name_from_fq_name(f) for f in exps_from_inp("DATA/FASTQ/Input_{wildcards.expconds}.fq.gz")] # this is supposed to work with Snakemake wildcard in string integration but doesn't for some reason :(
+    return sorted(set([f.replace("FASTQ", "BAM").replace(".fq.gz", ".bam").replace("_rv", "_pe").replace(".filtered", "")
+        for f in get_ATACseq_batches_in_dir("DATA/FASTQ") if not re.search("_fw", f) ])) # no wait this is correct, apparently it's either an input function or auto-wildcard parsing. Best practices is to use fstring python code.
+
+def get_fingerprint_bam_bais(wildcards):
+    return sorted(set([f.replace("FASTQ", "BAM").replace(".fq.gz", ".bam").replace("_rv", "_pe").replace(".filtered", "") + ".bai" 
+        for f in get_ATACseq_batches_in_dir("DATA/FASTQ") if not re.search("_fw", f) ]))
+
+def get_select_peaks_2reps_peaks(wildcards):
+    toreturn = []
+    reps = sorted(set([re.split(r'_(\d+)', f.split("/")[-1])[1] for f in glob.glob("DATA/FASTQ/"+wildcards.expconds+"_*.fq.gz")]))
+    for i in range(len(reps)-1):
+        for j in range(1,len(reps[i:])):
+            toreturn.append("DATA/PEAKS/"+wildcards.expconds+"_"+str(reps[i])+"_inter_"+str(reps[i+j])+"_pe_"+wildcards.cutoff+"_"+wildcards.type+"Peak")
+    return sorted(set(toreturn))
+
+def get_multiqc_fastqcs(wildcards):
+    return sorted(set(
+        x.replace("fq.gz", "filtered_fastqc.html")
+        for x in glob.glob("DATA/FASTQ/*.fq.gz")
+    ))
+    
+def get_deeptools_bigwigAverage_bws(wildcards):
+    return sorted(set([x.replace("_fw", "_rv").replace(".fq.gz", "_"+wildcards.norm+".bw").replace("_rv", "_pe").replace(".filtered", "").replace("_trimmed", "").replace("FASTQ", "BIGWIG") 
+        for x in glob.glob("DATA/FASTQ/"+wildcards.expconds+"_*.fq.gz")]))
+    
+def get_deeptools_bwsummary_bws(wildcards):
+    return sorted(set([x.replace("_fw", "_rv").replace(".fq.gz", "_"+wildcards.norm+".bw").replace("_rv", "_pe").replace(".filtered", "").replace("_trimmed", "").replace("FASTQ", "BIGWIG") 
+        for x in glob.glob("DATA/FASTQ/*.fq.gz")]))
+
+def get_multimapbw_peaks(wildcards):
+    files = sorted(set( 
+        x.replace("_fw", "_rv").replace(".filtered", "").replace("_trimmed", "").replace("_rv", "_pe").replace(".fq.gz", "_q"+wildcards.thrs+"_peaks."+wildcards.peaktype+"Peak") 
+        for x in glob.glob("DATA/FASTQ/*.fq.gz")
+    ))
+    toreturn=[]
+    first_f = files.pop(0).split("/")[-1]
+    while files:
+        repids = []
+        first_split = re.split(r'_(\d+)', first_f)
+        repids.append(first_split[1])
+        next_f = files.pop(0).split("/")[-1]
+        next_split = re.split(r'_(\d+)', next_f)
+        while first_split[0] == next_split[0]:
+            repids.append(next_split[1])
+            if files:
+                next_f = files.pop(0).split("/")[-1]
+                next_split = re.split(r'_(\d+)', next_f)
+            else:
+                next_f = "time to exit!"
+                next_split = ["wheeeeeeee"]
+        mystr = "DATA/PEAKS/"+ first_split[0] + "_" + repids[0]
+        for x in repids[1:]:
+            mystr = mystr + "_inter_" + x
+        mystr = mystr + first_split[-1]
+        toreturn.append(mystr)
+        first_f = next_f
+    # print(toreturn)
+    return sorted(set(toreturn))
+
+def get_multimapbw_merged_bigwigs(wildcards):
+    return sorted(set(
+        re.sub(r'_\d+', '_0', x.replace("_fw", "_rv").replace(".filtered", "").replace("_trimmed", "").replace("_rv", "_pe").replace("FASTQ", "BIGWIG").replace(".fq.gz", "_"+wildcards.bwnorm+".bw"))
+        for x in glob.glob("DATA/FASTQ/*.fq.gz")
+    ))
+
+def get_multimapbw_indiv_bigwigs(wildcards):
+    return sorted(set(
+        x.replace("_fw", "_rv").replace(".filtered", "").replace("_trimmed", "").replace("_rv", "_pe").replace("FASTQ", "BIGWIG").replace(".fq.gz", "_"+wildcards.bwnorm+".bw")
+        for x in glob.glob("DATA/FASTQ/*.fq.gz")
+    ))
+
+def get_multiqc_fastqcs(wildcards):
+    return sorted(set(
+        x.replace(".fq.gz", "_fastqc.html").replace(".filtered", "")
+        for x in glob.glob("DATA/FASTQ/*.fq.gz")
+    ))
+
+
+### BIG PICTURE RULES ###
+## These will be the rules you generally run through the command line.
+
+## AUTODETECT RULES
+## These use the file naming and folder architecture to find which data files to run on automatically
+
+rule first_test:
+    input:
+        expand("FIGURES/QC/multiqc_fastqc_report.html"),
+        expand("FIGURES/PCA/{norm}_t.png", norm=["RPGC", "norm10M"]),
+
+        expand("DATA/BED/q{qval}_{peaktype}peaks_vs_{norm}_merged_bigwigs_scores_mmb.csv", norm=["RPGC", "norm10M"], 
+            qval=["01","02","05"], peaktype=["narrow", "broad"])
+
+
+
+
+## USER SPECIFIED RULES
+## These use the config file to find which data files to run on
+
+
+
+### SPECIFIC RULES ###
+## These run each specific tool needed to complete the whole pipeline.
+
+## Quality Control
+
+rule fastQC:
+    input:
+        "DATA/FASTQ/{sample}.fq.gz"
+    output:
+        "DATA/FASTQ/{sample}_fastqc.html",
+        "DATA/FASTQ/{sample}_fastqc.zip"
+    log:
+        "snakemake_logs/fastQC/{sample}.log"
+    shell:
+        "fastqc {input} 2>{log}"
+
+rule multiQC:
+    input:
+        get_multiqc_fastqcs
+    output:
+        "FIGURES/QC/multiqc_fastqc_report.html"
+    log:
+        "snakemake_logs/fastQC/multiqc_fastqc.log"
+    shell:
+        "multiQC -n {output} DATA/FASTQ/"
+
+rule fingerprint_bam:
+    input:
+        bams=get_fingerprint_bam_bams,
+        bais=get_fingerprint_bam_bais
+    output:
+        "FIGURES/QC/{expconds}_fingerprint.svg"
+    log:
+        "snakemake_logs/fingerprint_bam/{expconds}.log"
+    shell:
+        "plotFingerprint --bamfiles {input.bams} -o {output} --ignoreDuplicates --plotTitle 'Fingerprint of {wildcards.expconds} ChIP-seq data' 2>{log}"
+
+
+
+## FastQ prep and alignment
+
+rule NGmerge_trimfastq:
+    input:
+        fw="DATA/FASTQ/{sample_sp}_fw.fq.gz",
+        rv="DATA/FASTQ/{sample_sp}_rv.fq.gz"
+    output:
+        fw=temp("DATA/FASTQ/{sample_sp}_fw_trimmed.fq.gz"),
+        rv=temp("DATA/FASTQ/{sample_sp}_rv_trimmed.fq.gz")
+    log: 
+        "snakemake_logs/NGmerge_trimfastq/{sample_sp}.log"
+    shell:
+        "SCRIPTS/NGmerge -az -1 {input.fw} -2 {input.rv} -o DATA/FASTQ/{wildcards.sample_sp}_trimmed 2>{log} ; " 
+        "sleep 10 ; mv DATA/FASTQ/{wildcards.sample_sp}_trimmed_1.fastq.gz {output.fw} ; mv DATA/FASTQ/{wildcards.sample_sp}_trimmed_2.fastq.gz {output.rv}"
+
+
+rule illumina_filtering:
+    input: 
+        "DATA/FASTQ/{sample}.fq.gz"
+    output: 
+        temp("DATA/FASTQ/{sample}.filtered.fq.gz")
+    log: 
+        "snakemake_logs/illumina_filtering/{sample}.log"
+    shell:  "gunzip -c {input} | awk -f SCRIPTS/clean_fastq.awk | " ## clean_fastq removes any read with under 20bp. Originally was just empty lines (crashes fastq_illumina_filter) but might as well clean some more while we're in the file.
+            "SCRIPTS/fastq_illumina_filter -vvN 2>{log} | "
+            "gzip > {output}"
+
+rule bowtie2_map_pe:
+    input: ## apparently the FQ should be unfiltered? Had bowtie2 crash due to mismatch in number of reads between fw and rv
+        fq1="DATA/FASTQ/{sample_sp}_fw_trimmed.fq.gz", # FASTQ1
+        fq2="DATA/FASTQ/{sample_sp}_rv_trimmed.fq.gz", # FASTQ2
+        fqc1="DATA/FASTQ/{sample_sp}_fw_trimmed_fastqc.html",
+        fqc2="DATA/FASTQ/{sample_sp}_rv_trimmed_fastqc.html"
+    output:
+        temp("DATA/SAM/{sample_sp}_pe.sam") # MAPPED READS BAM
+    log:
+        "snakemake_logs/bowtie2_map_pe/{sample_sp}.log"
+    threads: 8 # NTHREADS
+    shell:
+        "bowtie2 -p {threads} --end-to-end -x "+config["genome"]+" -1 {input.fq1} -2 {input.fq2} -S {output} 2>{log}"
+
+rule samtools_sort:
+    input:
+        "DATA/SAM/{sample}.sam"
+    output:
+        "DATA/BAM/{sample}.bam"
+    log:
+        "snakemake_logs/samtools_sort/{sample}.log"
+    threads: 7 # NTHREADS !! samtools uses 'additional threads' !!
+    shell:
+        "samtools sort -@ {threads} -O BAM {input} -o {output} 2>{log}"
+
+rule samtools_index:
+    input:
+        "DATA/BAM/{sample}.bam"
+    output:
+        "DATA/BAM/{sample}.bam.bai"
+    log:
+        "snakemake_logs/samtools_index/{sample}.log"
+    threads: 7 # NTHREADS !! samtools uses 'additional threads' !!
+    shell:
+        "samtools index -@ {threads} {input} 2>{log}"
+
+rule macs3_filterdup_pe:
+    input:
+        bam="DATA/BAM/{sample_sp}_pe.bam",
+        bai="DATA/BAM/{sample_sp}_pe.bam.bai"
+    output: 
+        temp("DATA/BED/{sample_sp}_pe_filterdup.bed")
+    log:
+        "snakemake_logs/macs3_filterdup/{sample_sp}_pe.log"
+    shell:
+        "macs3 filterdup -f BAMPE --keep-dup=1 -i {input.bam} -o {output} 2>{log}"
+
+rule remove_weird_chromosomes:
+    input:
+        "DATA/BED/{sample}_filterdup.bed"
+    output:
+        temp("DATA/BED/{sample}_filterdup_filterchr.bed")
+    log:
+        "snakemake_logs/remove_weird_chromosomes/{sample}.log"
+    shell:
+        "grep -v -E '_|chrEBV|chrM' {input} > {output} 2> {log}"
+
+rule macs3_pileup_pe:
+    input:
+        "DATA/BED/{sample_sp}_pe_filterdup_filterchr.bed"
+    output:
+        temp("DATA/BED/{sample_sp}_pe_pileup.bedGraph")
+    log:
+        "snakemake_logs/macs3_pileup/{sample_sp}_pe.log"
+    shell:
+        "macs3 pileup -f BEDPE -i {input} -o {output} 2>{log}"
+
+rule sort_and_norm:
+    input:
+        plu="DATA/BED/{sample}_pileup.bedGraph",
+        flt="DATA/BED/{sample}_filterdup_filterchr.bed"
+    output:
+        temp("DATA/BED/{sample}_pileup_sort_norm10M.bedGraph")
+    log:
+        "snakemake_logs/sort_and_norm/{sample}.log"
+    shell:
+        "sort -k1,1 -k2,2n {input.plu} | "
+        ## "awk -v nlines=$(wc -l <{input.flt}) '{{ $4 *= 10000000/nlines; print $1,$2,$3,$4}}' " # need the '<' on the input.flt file otherwise it'll return the filename too 
+        "awk 'FNR == NR {{ nlines++; next }} {{ $4 *= 10000000/nlines; print }}' {input.flt} /dev/stdin " # need to use /dev/stdin due to piping? # first awk {} counts the number of lines in the first file, then uses nlines in calculations on second file (need {{}} for snakemake reasons)
+        "> {output} 2>{log}"
+
+rule bed_to_BigWig:
+    input:
+        "DATA/BED/{sample}_pileup_sort_norm10M.bedGraph"
+    output:
+        "DATA/BIGWIG/{sample}_norm10M.bw"
+    log:
+        "snakemake_logs/bed_to_BigWig/{sample}.log"
+    shell:
+        "SCRIPTS/bedGraphToBigWig {input} "+config["chrom_sizes"]+" {output} 2>{log}"
+
+# Peak calling and processing
+
+rule macs3_callpeak_pe:
+    input:
+        trt="DATA/BED/{expconds}_{rep}_pe_filterdup_filterchr.bed"
+    output:
+        "DATA/PEAKS/{expconds}_{rep}_pe_q{qval}_peaks.narrowPeak"
+    log:
+        "snakemake_logs/macs3_callpeak/{expconds}_{rep}_pe_q{qval}.log"
+    params:
+        g=config.get("macs3_callpeak_g", "hs")
+    run:
+        if "macs3_callpeak_max_gap" in config: # conditional run section + using new wildcard from T Booth
+            max_gap = " --max-gap " + config["macs3_callpeak_max_gap"]
+        else:
+            max_gap = ""
+        if "macs3_callpeak_min_length" in config: # conditional run section + using new wildcard from T Booth
+            min_length = " --min-length " + config["macs3_callpeak_min_length"]
+        else:
+            min_length = ""
+        if wildcards.qval[0] == "0":
+            real_qval = float("0."+wildcards.qval)
+        else:
+            real_qval = float(wildcards.qval)
+        shell("macs3 callpeak -f BEDPE -t {input.trt} -n {wildcards.expconds}_{wildcards.rep}_pe_q{wildcards.qval} --outdir DATA/PEAKS/ "
+        "-g {params.g} -q {real_qval}{max_gap}{min_length} 2>{log}")
+
+rule macs3_callbroadpeak_pe:
+    input:
+        trt="DATA/BED/{expconds}_{rep}_pe_filterdup_filterchr.bed"
+    output:
+        "DATA/PEAKS/{expconds}_{rep}_pe_q{qval}_peaks.broadPeak"
+    log:
+        "snakemake_logs/macs3_callbroadpeak/{expconds}_{rep}_pe_q{qval}.log"
+    params:
+        g=config.get("macs3_callbroadpeak_g", "hs")
+    run:
+        if "macs3_callpeak_max_gap" in config: # conditional run section + using new wildcard from T Booth
+            max_gap = " --max-gap " + config["macs3_callpeak_max_gap"]
+        else:
+            max_gap = ""
+        if "macs3_callpeak_min_length" in config: # conditional run section + using new wildcard from T Booth
+            min_length = " --min-length " + config["macs3_callpeak_min_length"]
+        else:
+            min_length = ""
+        if wildcards.qval[0] == "0":
+            real_qval = float("0."+wildcards.qval)
+        else:
+            real_qval = float(wildcards.qval)
+        shell("macs3 callpeak -f BEDPE -t {input.trt} -n {wildcards.expconds}_{wildcards.rep}_pe_q{wildcards.qval} --outdir DATA/PEAKS/ "
+        "-g {params.g} --broad --broad-cutoff {real_qval}{max_gap}{min_length} 2>{log}")
+
+rule bedtools_intersect:
+    input:
+        p1="DATA/PEAKS/{expconds}_{rep1}_pe_{cutoff}_{type}Peak",
+        p2="DATA/PEAKS/{expconds}_{rep2}_pe_{cutoff}_{type}Peak"
+    output:
+        "DATA/PEAKS/{expconds}_{rep1}_inter_{rep2}_pe_{cutoff}_{type}Peak"
+    log:
+        "snakemake_logs/bedtools_intersect/{expconds}_{rep1}_inter_{rep2}_pe_{cutoff}_{type}.log"
+    shell:
+        "bedtools intersect -a {input.p1} -b {input.p2} > {output}"
+
+rule select_peaks_2reps:
+    input:
+        get_select_peaks_2reps_peaks 
+    output:
+        "DATA/PEAKS/{expconds}_in2reps_pe_{cutoff}_{type}Peak"
+    log:
+        "snakemake_logs/bedtools_intersect/{expconds}_in2reps_pe_{cutoff}_{type}.log"
+    shell:
+        "cat {input} | bedtools sort -i /dev/stdin > temp_$(echo -n {input} | md5sum | tr '-' ' ') ; "
+        "bedtools merge -d 50 -i temp_$(echo -n {input} | md5sum | tr '-' ' ') > {output}; rm temp_$(echo -n {input} | md5sum | tr '-' ' ')"
+
+rule deeptools_bamCoverage_RPGC_pe:
+    input:
+        bam="DATA/BAM/{sample_sp}_pe.bam",
+        bai="DATA/BAM/{sample_sp}_pe.bam.bai"
+    output:
+        "DATA/BIGWIG/{sample_sp}_pe_RPGC.bw"
+    log:
+        "snakemake_logs/deeptools_bamCoverage_RPGC/{sample_sp}_pe.log"
+    params:
+        genome_size = 2913022398,
+        bs=config.get("deeptools_bamCoverage_RPGC_pe_bs", "20"),
+        smoothLength=config.get("deeptools_bamCoverage_RPGC_pe_smoothLength", "0")
+    run:
+        if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
+            bl_file = "-bl " + config["excluded_regions"]
+            excluded_size = int(config["excluded_regions"].split(".")[0].split("_")[-1])
+            effective_genome_size = params.genome_size - excluded_size
+        else:
+            bl_file = ""
+            effective_genome_size = params.genome_size
+
+        shell("bamCoverage --normalizeUsing RPGC {bl_file} --effectiveGenomeSize {effective_genome_size} -bs {params.bs} --smoothLength {params.smoothLength} -e -b {input.bam} -o {output} 2>{log}")
+
+rule deeptools_bamCoverage_RPKM_pe:
+    input:
+        bam="DATA/BAM/{sample_sp}_pe.bam",
+        bai="DATA/BAM/{sample_sp}_pe.bam.bai"
+    output:
+        "DATA/BIGWIG/{sample_sp}_pe_RPKM.bw"
+    log:
+        "snakemake_logs/deeptools_bamCoverage_RPKM/{sample_sp}_pe.log"
+    params:
+        genome_size = 2913022398,
+        bs=config.get("deeptools_bamCoverage_RPKM_pe_bs", "20"),
+        smoothLength=config.get("deeptools_bamCoverage_RPKM_pe_smoothLength", "0")
+    run:
+        if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
+            bl_file = "-bl " + config["excluded_regions"]
+            excluded_size = int(config["excluded_regions"].split(".")[0].split("_")[-1])
+            effective_genome_size = params.genome_size - excluded_size
+        else:
+            bl_file = ""
+            effective_genome_size = params.genome_size
+
+        shell("bamCoverage --normalizeUsing RPKM {bl_file} --effectiveGenomeSize {effective_genome_size} -bs {params.bs} --smoothLength {params.smoothLength} -e -b {input.bam} -o {output} 2>{log}")
+
+rule deeptools_bigwigAverage:
+    input:
+        get_deeptools_bigwigAverage_bws
+    output:
+        "DATA/BIGWIG/{expconds}_0{pe}_{norm}.bw"
+    log:
+        "snakemake_logs/deeptools_bigwigAverage/{expconds}_merge{pe}_{norm}.log"
+    params:
+        bs=config.get("deeptools_bamAverage_bs", "20")
+    run:
+        if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
+            bl_file = "-bl " + config["excluded_regions"]
+        else:
+            bl_file = ""
+        shell("bigwigAverage -bs {params.bs} -b {input} {bl_file} -o {output} 2>{log}")
+
+rule multimapbw:
+    input:
+        p=get_multimapbw_peaks,
+        b=get_multimapbw_merged_bigwigs 
+    output:
+        "DATA/BED/q{thrs}_{peaktype}peaks_vs_{bwnorm}_merged_bigwigs_mmb.csv"
+    log:
+        "snakemake_logs/multimapbw/mmb_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
+    shell:
+        "SCRIPTS/multimapbw.sh {input.p} :: {input.b} > {output}"
+
+rule multimapbw_indiv:
+    input:
+        p=get_multimapbw_peaks,
+        b=get_multimapbw_indiv_bigwigs 
+    output:
+        "DATA/BED/q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_mmb.csv"
+    log:
+        "snakemake_logs/multimapbw_indiv/mmb_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
+    shell:
+        "SCRIPTS/multimapbw.sh {input.p} :: {input.b} > {output}"
+
+rule calculate_multimapbw_indiv_scores:
+    input:
+        "DATA/BED/q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_mmb.csv"
+    output:
+        "DATA/BED/q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_scores_mmb.csv"
+    log:
+        "snakemake_logs/multimapbw_indiv/mmb_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
+    run:
+        effect_size_mmb(input[0], output[0])
+
+rule concat_multimapbw_indiv_scores:
+    input:
+        m="DATA/BED/q{thrs}_{peaktype}peaks_vs_{bwnorm}_merged_bigwigs_mmb.csv",
+        s="DATA/BED/q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_scores_mmb.csv"
+    output:
+        "DATA/BED/q{thrs}_{peaktype}peaks_vs_{bwnorm}_merged_bigwigs_scores_mmb.csv"
+    log:
+        "snakemake_logs/multimapbw_indiv/mmb_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
+    shell:
+        "paste {input.m} {input.s} > {output}"
+
+rule deeptools_bwsummary:
+    input:
+        get_deeptools_bwsummary_bws
+    output:
+        temp("DATA/BIGWIG/{norm}_bwsummary.npz")
+    log:
+        "snakemake_logs/deeptools_bwsummary/{norm}.log"
+    shell:
+        "multiBigwigSummary bins --smartLabels -r chr1 -b {input} -o {output}"
+
+rule deeptools_PCA:
+    input:
+        "DATA/BIGWIG/{batch}_bwsummary.npz"
+    output:
+        # reg="FIGURES/PCA/{batch}.png", ## draws figure based on loadings, not what we want here
+        tr="FIGURES/PCA/{batch}_t.png"
+    log:
+        "snakemake_logs/deeptools_PCA/{batch}.log"
+    shell:
+        # "plotPCA -in {input} -o {output.reg} ; "
+        "plotPCA --transpose -in {input} -o {output.tr}"
+

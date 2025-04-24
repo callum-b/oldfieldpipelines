@@ -9,5 +9,4 @@ samples:
   peaks:
     - CTCF_H3K9ac/CTCF_TEST_T1_pos_2
     - CTCF_H3K9ac/CTCF_TEST_T1_pos_3 
-
 macs3_callbroadpeak_q: 0.05
