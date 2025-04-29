@@ -49,6 +49,7 @@ MAX_CORES = cpu_count()
 wildcard_constraints:
     sample_sp = r".+(?<!_pe)", # use this wildcard when using software that requires specific input/options for single end or paired end reads
     rep = r"[0-9]+",
+    norm = r"[^_]+",
     pe = r"(_pe){0,1}"
 
 
@@ -75,7 +76,7 @@ def cohen_d(a,b):
             return "NAN"
     try:
         res = (np.mean(float_a) - np.mean(float_b)) / (
-                    ((len(float_a)-1)*np.stdla(float_a, ddof=1) ** 2 + (len(float_b)-1)*np.std(float_b, ddof=1) ** 2) / (len(float_a) + len(float_b) -2)
+                    ((len(float_a)-1)*np.std(float_a, ddof=1) ** 2 + (len(float_b)-1)*np.std(float_b, ddof=1) ** 2) / (len(float_a) + len(float_b) -2)
                         ) ** 0.5
     except (ZeroDivisionError, AttributeError):
         res=0
@@ -164,7 +165,7 @@ def get_deeptools_bwsummary_bws(wildcards):
     return sorted(set([x.replace("_fw", "_rv").replace(".fq.gz", "_"+wildcards.norm+".bw").replace("_rv", "_pe").replace(".filtered", "").replace("_trimmed", "").replace("FASTQ", "BIGWIG") 
         for x in glob.glob("DATA/FASTQ/*.fq.gz")]))
 
-def get_multimapbw_peaks(wildcards):
+def get_multimapbw_inter_peaks(wildcards):
     files = sorted(set( 
         x.replace("_fw", "_rv").replace(".filtered", "").replace("_trimmed", "").replace("_rv", "_pe").replace(".fq.gz", "_q"+wildcards.thrs+"_peaks."+wildcards.peaktype+"Peak") 
         for x in glob.glob("DATA/FASTQ/*.fq.gz")
@@ -194,6 +195,12 @@ def get_multimapbw_peaks(wildcards):
     # print(toreturn)
     return sorted(set(toreturn))
 
+def get_multimapbw_2reps_peaks(wildcards):
+    return sorted(set( 
+        re.sub(r'_\d+', "_in2reps", x.replace("FASTQ", "PEAKS").replace("_fw", "_rv").replace(".filtered", "").replace("_trimmed", "").replace("_rv", "_pe").replace(".fq.gz", "_q"+wildcards.thrs+"_peaks."+wildcards.peaktype+"Peak"))
+        for x in glob.glob("DATA/FASTQ/*.fq.gz")
+    ))
+
 def get_multimapbw_merged_bigwigs(wildcards):
     return sorted(set(
         re.sub(r'_\d+', '_0', x.replace("_fw", "_rv").replace(".filtered", "").replace("_trimmed", "").replace("_rv", "_pe").replace("FASTQ", "BIGWIG").replace(".fq.gz", "_"+wildcards.bwnorm+".bw"))
@@ -219,15 +226,17 @@ def get_multiqc_fastqcs(wildcards):
 ## AUTODETECT RULES
 ## These use the file naming and folder architecture to find which data files to run on automatically
 
-rule first_test:
+rule andold:
     input:
         expand("FIGURES/QC/multiqc_fastqc_report.html"),
         expand("FIGURES/PCA/{norm}_t.png", norm=["RPGC", "norm10M"]),
 
-        expand("DATA/BED/q{qval}_{peaktype}peaks_vs_{norm}_merged_bigwigs_scores_mmb.csv", norm=["RPGC", "norm10M"], 
+        expand("DATA/BED/q{qval}_{peaktype}peaks_2reps_vs_{norm}_merged_bigwigs_scores_mmb.csv", norm=["RPGC", "norm10M"], 
             qval=["01","02","05"], peaktype=["narrow", "broad"])
 
-
+rule PCA_all_bws:
+    input:
+        expand("FIGURES/PCA/{norm}_t.png", norm=["RPGC", "norm10M"])
 
 
 ## USER SPECIFIED RULES
@@ -528,46 +537,68 @@ rule deeptools_bigwigAverage:
             bl_file = ""
         shell("bigwigAverage -bs {params.bs} -b {input} {bl_file} -o {output} 2>{log}")
 
-rule multimapbw:
+rule multimapbw_inter:
     input:
-        p=get_multimapbw_peaks,
+        p=get_multimapbw_inter_peaks,
         b=get_multimapbw_merged_bigwigs 
     output:
-        "DATA/BED/q{thrs}_{peaktype}peaks_vs_{bwnorm}_merged_bigwigs_mmb.csv"
+        "DATA/BED/q{thrs}_{peaktype}peaks_inter_vs_{bwnorm}_merged_bigwigs_mmb.csv"
     log:
-        "snakemake_logs/multimapbw/mmb_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
+        "snakemake_logs/multimapbw/mmb_q{thrs}_{peaktype}peaks_inter_vs_{bwnorm}_bigwigs.log"
     shell:
         "SCRIPTS/multimapbw.sh {input.p} :: {input.b} > {output}"
 
-rule multimapbw_indiv:
+rule multimapbw_inter_indiv:
     input:
-        p=get_multimapbw_peaks,
+        p=get_multimapbw_inter_peaks,
         b=get_multimapbw_indiv_bigwigs 
     output:
-        "DATA/BED/q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_mmb.csv"
+        "DATA/BED/q{thrs}_{peaktype}peaks_inter_vs_{bwnorm}_indiv_bigwigs_mmb.csv"
     log:
-        "snakemake_logs/multimapbw_indiv/mmb_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
+        "snakemake_logs/multimapbw_indiv/mmb_q{thrs}_{peaktype}peaks_inter_vs_{bwnorm}_bigwigs.log"
+    shell:
+        "SCRIPTS/multimapbw.sh {input.p} :: {input.b} > {output}"
+
+rule multimapbw_2reps:
+    input:
+        p=get_multimapbw_2reps_peaks,
+        b=get_multimapbw_merged_bigwigs 
+    output:
+        "DATA/BED/q{thrs}_{peaktype}peaks_2reps_vs_{bwnorm}_merged_bigwigs_mmb.csv"
+    log:
+        "snakemake_logs/multimapbw/mmb_q{thrs}_{peaktype}peaks_2reps_vs_{bwnorm}_bigwigs.log"
+    shell:
+        "SCRIPTS/multimapbw.sh {input.p} :: {input.b} > {output}"
+
+rule multimapbw_2reps_indiv:
+    input:
+        p=get_multimapbw_2reps_peaks,
+        b=get_multimapbw_indiv_bigwigs 
+    output:
+        "DATA/BED/q{thrs}_{peaktype}peaks_2reps_vs_{bwnorm}_indiv_bigwigs_mmb.csv"
+    log:
+        "snakemake_logs/multimapbw_indiv/mmb_q{thrs}_{peaktype}peaks_2reps_vs_{bwnorm}_bigwigs.log"
     shell:
         "SCRIPTS/multimapbw.sh {input.p} :: {input.b} > {output}"
 
 rule calculate_multimapbw_indiv_scores:
     input:
-        "DATA/BED/q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_mmb.csv"
+        "DATA/BED/q{thrs}_{peaktype}peaks_{intertype}_vs_{bwnorm}_indiv_bigwigs_mmb.csv"
     output:
-        "DATA/BED/q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_scores_mmb.csv"
+        "DATA/BED/q{thrs}_{peaktype}peaks_{intertype}_vs_{bwnorm}_indiv_bigwigs_scores_mmb.csv"
     log:
-        "snakemake_logs/multimapbw_indiv/mmb_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
+        "snakemake_logs/multimapbw_indiv/mmb_q{thrs}_{peaktype}peaks_{intertype}_vs_{bwnorm}_bigwigs.log"
     run:
         effect_size_mmb(input[0], output[0])
 
 rule concat_multimapbw_indiv_scores:
     input:
-        m="DATA/BED/q{thrs}_{peaktype}peaks_vs_{bwnorm}_merged_bigwigs_mmb.csv",
-        s="DATA/BED/q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_scores_mmb.csv"
+        m="DATA/BED/q{thrs}_{peaktype}peaks_{intertype}_vs_{bwnorm}_merged_bigwigs_mmb.csv",
+        s="DATA/BED/q{thrs}_{peaktype}peaks_{intertype}_vs_{bwnorm}_indiv_bigwigs_scores_mmb.csv"
     output:
-        "DATA/BED/q{thrs}_{peaktype}peaks_vs_{bwnorm}_merged_bigwigs_scores_mmb.csv"
+        "DATA/BED/q{thrs}_{peaktype}peaks_{intertype}_vs_{bwnorm}_merged_bigwigs_scores_mmb.csv"
     log:
-        "snakemake_logs/multimapbw_indiv/mmb_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
+        "snakemake_logs/multimapbw_indiv/mmb_q{thrs}_{peaktype}peaks_{intertype}_vs_{bwnorm}_bigwigs.log"
     shell:
         "paste {input.m} {input.s} > {output}"
 
