@@ -1,20 +1,13 @@
-# OldfieldPipelines
-Bioinformatic analyses snakemake pipelines developed for A Oldfield's team
+# OldfieldPipelines - Oldfield team ChIP-seq data analysis pipeline
 
-# Oldfield team ChIP-seq data analysis pipeline
+Bioinformatic analyses snakemake pipelines developed for A Oldfield's team
 
 This is a quick start guide for this Snakemake pipeline, intended to align and analyse ChIP-seq data from an Illumina sequencer. If you need more information or have specific questions, contact Cal. If you don't know who Cal is, I'm sorry for your loss. Also, how did you get this?
 
 If you have never used Snakemake before at all, you might want to go over the basic principles on their website:
 >    https://snakemake.readthedocs.io/en/stable/
 
-This pipeline expects a certain folder architecture, which should have been created when you unzipped the tarball that contained this README.
-
-If you also obtained the test data provided, move it to the DATA/ folder and unzip it there.
-
-If you want to align this data to HG38, you can download the necessary genome files here: https://genome-idx.s3.amazonaws.com/bt/GRCh38_noalt_as.zip (or perhaps browse other versions and mirror URLs here: https://bowtie-bio.sourceforge.net/bowtie2/manual.shtml).
-
-To do so, download that file, move it to DATA/GENOMES/ and unzip it. It should be ready to use after that.
+This pipeline expects a certain folder architecture, which should have been created when you cloned this git repo or unzipped the tarball that contained this README.
 
 ## General features
 
@@ -36,13 +29,15 @@ DATA/BED/CTCF_H3K9ac/CTCF_T1_pos_2_filterdup_filterchr.bed
  - file_extension: bed (the file extension is bed)
 
 
-Input files bear no replicate number. One input will be used for all the replicates of one experimental condition.
-If you also obtained the test data, you should see the naming convention for the fastq files. Because there are two separate files for a paired-end experiment, the two files are tagged as "_fw" and _"rv" for forward and reverse. Once aligned, the files will bear the "_pe" tag.
-You may also notice that the fastq files in the TP63 experiment already bear the "filtered" tag in their name. It is possible to use externally processed files in the pipeline, but this should be done with some care. I'd recommend looking into how Snakemake handles inputs and outputs, and then inspecting the Snakefile to look at the relevant rules you'll be bypassing.
+Input files have no replicate number. One input will be used for all the replicates of one experimental condition.
+If you also obtained the test data, you should see the naming convention for the fastq files. If there are two separate files for a paired-end experiment, the two files should be tagged as "_fw" and _"rv" for forward and reverse. Once aligned, the files will bear the "_pe" tag.
+You may also add the ".filtered" tag in your file names. It is possible to use externally processed files in the pipeline, but this should be done with some care. I'd recommend looking into how Snakemake handles inputs and outputs, and then inspecting the Snakefile to look at the relevant rules you'll be bypassing.
 
 ## Local usage 
 
-**!!MAC USERS!!** you will need to have Homebrew installed. Also, you need to comment out the lines for pysam, deeptools, macs and multiqc in burnard_smk_chipseq.yaml (add a # before the - for that line). Once you have created and activated your environment, download them using pip (something like "pip install pysam==0.22 deeptools==3.5.5 macs3==3.0.1 multiqc==1.28")
+To start, clone this repo or download it as a zip and unzip it.
+
+**!!MAC USERS!!** you will need to have Homebrew installed. Also, you need to comment out the lines for pysam, deeptools, macs and multiqc in smk_chipseq.yaml (add a # before the - for that line). Once you have created and activated your environment, download them using pip (something like `pip install pysam==0.22 deeptools==3.5.5 macs3==3.0.1 multiqc==1.28`)
 
 First, install micromamba:
 
@@ -50,23 +45,48 @@ First, install micromamba:
 
 Second, use micromamba to create the environment described in the config file: 
 
-`micromamba create -f burnard_smk_chipseq.yaml`
+`micromamba create -f smk_chipseq.yaml`
 
 Third, activate that environment: 
 
 `micromamba activate smk_chipseq`
 
-And then you should be ready to run the rules listed in Snakefile. You could for example run align_all_fastqs_autodetect using the command: 
+If you're just starting out and want to run this pipeline on the test data provided, run
 
-`snakemake --cores=10 align_all_fastqs_autodetect`
+```
+mv test_data_chr20 ChIPseq/DATA/FASTQ
+cd ChIPseq
+```
+
+Or if you have your own ChIP-seq data you want to try this out on, create an experiment folder in DATA/FASTQ and put the files there:
+
+```
+cd ChIPseq
+mkdir DATA/FASTQ/my_experiment
+cp path/to/my/files/*.fq.gz DATA/FASTQ/my_experiment
+```
+
+If you want to align this data to HG38, you can download the necessary genome files here: https://genome-idx.s3.amazonaws.com/bt/GRCh38_noalt_as.zip (or perhaps browse other versions and mirror URLs here: https://bowtie-bio.sourceforge.net/bowtie2/manual.shtml).
+
+```
+cd DATA/GENOMES
+wget https://genome-idx.s3.amazonaws.com/bt/GRCh38_noalt_as.zip
+unzip GRCh38_noalt_as.zip
+cd ../..
+```
+
+And then you should be ready to run the rules listed in Snakefile. Start by checking out which rules will be run (and the shell commands used) using a "dry-run":
+
+`snakemake -np andold_autodetect`
 
 or check out the DAG of jobs that will be run if you want to call peaks on all your ChIPs:
 
 `snakemake --forceall --dag call_all_peaks_autodetect | dot -Tsvg > dag.svg`
 
-For any rule you're curious about, you can use the "dry run" options to view which jobs and shell commands snakemake will execute when you run it for real:
+You should now be ready to run the pipeline on your device. How many cores you dedicate to it depends on how powerful your machine is, I wouldn't recommend more than 8 unless it was designed to run this kind of software. You might not be able to use it much while all this is running, as it can get quite intensive.
 
-`snakemake -np full_monty_autodetect`
+`snakemake --cores=10 andold_autodetect`
+
 
 
 ## Cluster usage 
