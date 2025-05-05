@@ -8,6 +8,7 @@ Heavily inspired by R Raffel's pipeline
 Align ChIP-Seq reads onto HG38, processed mapped reads and call peaks (+ other enrichment analyses)
 
 Tools:
+  Snakemake 7.32.4
   awk
   fastq_illumina_filter
   fastQC 
@@ -15,16 +16,19 @@ Tools:
   samtools 
   deeptools 
   MACS3 
-  
+  STAR
 
 --- HOW TO RUN ME ---
+There should be a detailed README with this file, but here's a quick run-down:
 This Snakefile expects a certain directory architecture to run.
 A "working directory" contains three directories: DATA, FIGURES and SCRIPTS. This Snakefile should be located in the working directory, as should its associated config.yaml file.
 YAML is meant to be a user-friendly and readable version of XML. Its syntax guide can be found it here: https://yaml.org/refcard.html 
-Your config.yaml file indicates which data files to process, as well as the various parametres for the tools you will be using.
+Your config.yaml file indicates some key information, as well as the various parametres for the tools you will be using. It can also be used to run certain jobs.
 
 Inside your DATA directory, files should be sorted first by their data types. Normally, you will be starting from .fq.gz files (not .fastq.gz, nor .fq, nor .fastq), so they should be in a FASTQ directory.
-When indicating the path to your .fq files, only specify the relative path from the FASTQ directory, stripped of file extensions. For example, if you have a directory labelled "CTCF" because that is what you are analysing, 
+They also be sorted by experiments, in particular this is import for the input files used to normalise ChIP-seq assays. Each experiment folder should contain one and only one input file for each experimental condition.
+This pipeline then uses "autodetect" functions to determine what final files to aim for. You shouldn't need to worry about the intermediary steps.
+When using the the config.yaml file, you need to indicate the path to your .fq files, by specifying the relative path from the FASTQ directory, stripped of file extensions. For example, if you have a directory labelled "CTCF" because that is what you are analysing, 
         you need to indicate only "CTCF/CTCF_T1_pos_2" in your config file. Do not indicate the absolute path (something like "/home/your.name/ChIP-seq/DATA/FASTQ/CTCF/CTCF_T1_pos_2.fq.gz").
 
 This pipeline will then create other directories in DATA according to the output formats, like BAM, BED, etc. It will also attempt to recreate any subdirectories that were contained in your FASTQ directory.
@@ -48,10 +52,10 @@ import os
 ### GLOBAL VARIABLES ###
 MAX_CORES = cpu_count()
 if os.uname()[4] == 'arm64':
-    fastq_illumina_filter_suffix = "_arm64"
-    # print("ARM64 architecture detected") ## DAG drawing tool doesn't like prints, uncomment for more verbose logging
+    macos_suffix = "_arm64"
+    # print("ARM64 architecture detected")
 else:
-    fastq_illumina_filter_suffix = ""
+    macos_suffix = ""
 
 
 wildcard_constraints:
@@ -428,7 +432,7 @@ rule illumina_filtering:
     log: 
         "snakemake_logs/illumina_filtering/{sample}.log"
     shell:  "gunzip -c {input} | awk -f SCRIPTS/clean_fastq.awk | " ## clean_fastq removes any read with under 20bp. Originally was just empty lines (crashes fastq_illumina_filter) but might as well clean some more while we're in the file.
-            "SCRIPTS/fastq_illumina_filter"+fastq_illumina_filter_suffix+" -vvN 2>{log} | "
+            "SCRIPTS/fastq_illumina_filter"+macos_suffix+" -vvN 2>{log} | "
             "gzip > {output}"
 
 rule bowtie2_map_se:
@@ -588,7 +592,7 @@ rule bed_to_BigWig:
     log:
         "snakemake_logs/bed_to_BigWig/{sample}.log"
     shell:
-        "SCRIPTS/bedGraphToBigWig {input} "+config["chrom_sizes"]+" {output} 2>{log}"
+        "SCRIPTS/bedGraphToBigWig"+macos_suffix+"" {input} "+config["chrom_sizes"]+" {output} 2>{log}"
 
 rule deeptools_bamCoverage_RPGC_se:
     input:
