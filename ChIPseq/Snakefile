@@ -268,7 +268,7 @@ def get_multimapbw_indiv_bigwigs(wildcards):
 
 def get_multiqc_fastqcs(wildcards):
     return sorted(set(
-        x..replace(".filtered", "").replace("fq.gz", "filtered_fastqc.html")
+        x.replace(".filtered", "").replace("fq.gz", "filtered_fastqc.html")
         for x in glob.glob("DATA/FASTQ/"+wildcards.expdir+"/*.fq.gz")
     ))
 
