@@ -87,7 +87,7 @@ You should now be ready to run the pipeline on your device. How many cores you d
 
 `snakemake --cores=10 andold_autodetect`
 
-
+If you cancel the Snakemake pipeline at some point (using Ctrl+C) or if a rule crashes, you may need to use `snakemake --unlock` to enable it to run again. You might also want to consider using `snakemake --keep-going --rerun-incomplete --cores=...` to keep the pipeline running even if one job fails, and to restart any job that failed or was cancelled in a previous run.
 
 ## Cluster usage 
 
