@@ -592,7 +592,7 @@ rule bed_to_BigWig:
     log:
         "snakemake_logs/bed_to_BigWig/{sample}.log"
     shell:
-        "SCRIPTS/bedGraphToBigWig"+macos_suffix+"" {input} "+config["chrom_sizes"]+" {output} 2>{log}"
+        "SCRIPTS/bedGraphToBigWig"+macos_suffix+" {input} "+config["chrom_sizes"]+" {output} 2>{log}"
 
 rule deeptools_bamCoverage_RPGC_se:
     input:
@@ -961,13 +961,13 @@ rule deeptools_PCA:
         # "plotPCA -in {input} -o {output.reg} ; "
         "plotPCA --transpose -in {input} -o {output.tr}"
 
-rule heatman_correlation:
+rule heatmap_correlation:
     input:
         "DATA/BIGWIG/{batch}_bwsummary.npz"
     output:
         "FIGURES/HM/{batch}_pearson.png"
     log:
-        "snakemake_logs/heatman_correlation/{batch}.log"
+        "snakemake_logs/heatmap_correlation/{batch}.log"
     run:
         correlation_hm(input[0], output[0])
 
