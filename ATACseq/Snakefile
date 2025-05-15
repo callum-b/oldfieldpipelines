@@ -1,6 +1,6 @@
 """
 
-@version 0.1
+@version 1.1.2
 @author: C Burnard
 
 Pipeline under development for A Oldfield
@@ -45,6 +45,14 @@ import math
 
 ### GLOBAL VARIABLES ###
 MAX_CORES = cpu_count()
+if os.uname()[4] == 'arm64':
+    macos_suffix = "_arm64"
+    # print("ARM64 architecture detected")
+else:
+    macos_suffix = ""
+
+
+
 
 wildcard_constraints:
     sample_sp = r".+(?<!_pe)", # use this wildcard when using software that requires specific input/options for single end or paired end reads
@@ -399,7 +407,7 @@ rule bed_to_BigWig:
     log:
         "snakemake_logs/bed_to_BigWig/{sample}.log"
     shell:
-        "SCRIPTS/bedGraphToBigWig {input} "+config["chrom_sizes"]+" {output} 2>{log}"
+        "SCRIPTS/bedGraphToBigWig"+macos_suffix+" {input} "+config["chrom_sizes"]+" {output} 2>{log}"
 
 # Peak calling and processing
 
@@ -546,7 +554,7 @@ rule multimapbw_inter:
     log:
         "snakemake_logs/multimapbw/mmb_q{thrs}_{peaktype}peaks_inter_vs_{bwnorm}_bigwigs.log"
     shell:
-        "SCRIPTS/multimapbw.sh {input.p} :: {input.b} > {output}"
+        "SCRIPTS/multimapbw"+macos_suffix+".sh {input.p} :: {input.b} > {output}"
 
 rule multimapbw_inter_indiv:
     input:
@@ -557,7 +565,7 @@ rule multimapbw_inter_indiv:
     log:
         "snakemake_logs/multimapbw_indiv/mmb_q{thrs}_{peaktype}peaks_inter_vs_{bwnorm}_bigwigs.log"
     shell:
-        "SCRIPTS/multimapbw.sh {input.p} :: {input.b} > {output}"
+        "SCRIPTS/multimapbw"+macos_suffix+".sh {input.p} :: {input.b} > {output}"
 
 rule multimapbw_2reps:
     input:
@@ -568,7 +576,7 @@ rule multimapbw_2reps:
     log:
         "snakemake_logs/multimapbw/mmb_q{thrs}_{peaktype}peaks_2reps_vs_{bwnorm}_bigwigs.log"
     shell:
-        "SCRIPTS/multimapbw.sh {input.p} :: {input.b} > {output}"
+        "SCRIPTS/multimapbw"+macos_suffix+".sh {input.p} :: {input.b} > {output}"
 
 rule multimapbw_2reps_indiv:
     input:
@@ -579,7 +587,7 @@ rule multimapbw_2reps_indiv:
     log:
         "snakemake_logs/multimapbw_indiv/mmb_q{thrs}_{peaktype}peaks_2reps_vs_{bwnorm}_bigwigs.log"
     shell:
-        "SCRIPTS/multimapbw.sh {input.p} :: {input.b} > {output}"
+        "SCRIPTS/multimapbw"+macos_suffix+".sh {input.p} :: {input.b} > {output}"
 
 rule calculate_multimapbw_indiv_scores:
     input:

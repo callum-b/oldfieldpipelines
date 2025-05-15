@@ -287,6 +287,7 @@ rule andold_autodetect:
         expand("FIGURES/QC/multiqc_fastqc_{expdir}_report.html", expdir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
         expand("FIGURES/PCA/{full_exp}_norm10M_t.png", full_exp=set([x.split("/")[0] + "/" + x.split("/")[-1].split("_")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
         expand("FIGURES/PCA/{expdir}/norm10M_t.png", expdir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
+        expand("FIGURES/HM/{expdir}/norm10M_pearson.png", expdir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
         expand("FIGURES/PCA/batch_{batch}_norm10M_t.png", batch=["histone", "tf"]),
         expand("DATA/BED/{full_exp}_q{qval}_{peaktype}peaks_vs_norm10M_inorm_merged_bigwigs_scores_mmb.csv", 
             full_exp=set( "_".join(x.replace("_pe", "").split("_")[:-2]) for x in find_full_exp_names("DATA/FASTQ/")), qval=["01","02","05"], peaktype=["narrow", "broad"])
