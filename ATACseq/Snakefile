@@ -36,6 +36,8 @@ This pipeline will then create other directories in DATA according to the output
 configfile: "config.yaml"
 
 from multiprocessing import cpu_count
+import matplotlib
+matplotlib.use("Agg")
 import numpy as np
 import glob
 import re
@@ -68,6 +70,25 @@ wildcard_constraints:
 def get_ATACseq_batches_in_dir(path): ## path should probably be "DATA/FASTQ"
     flist = [f.split("/")[-1].split(".")[1] for f in glob.glob(path+"/*.fq.gz")]
     return sorted(set(flist))
+
+def correlation_hm(in_path, out_path):
+    data = np.load(in_path)
+    mtx = data["matrix"]
+    mtx = mtx[~np.isnan(mtx).any(axis=1)]
+    corr = np.corrcoef(mtx, rowvar=False)
+    figheight = corr.shape[0] * 5
+    fig, ax = plt.subplots(figsize=(figheight*2,figheight), dpi=60)
+    im=ax.matshow(corr)
+    ax.set_yticks(range(corr.shape[0]), labels=data["labels"], fontsize=30)
+    ax.set_xticks([])
+    # Loop over data dimensions and create text annotations.
+    for i in range(corr.shape[0]):
+        for j in range(corr.shape[1]): ## square matrix so same value but still
+            text = ax.text(j, i, round(corr[i, j], 3),
+                        ha="center", va="center", color="deeppink", fontsize=30)
+    fig.savefig(out_path, bbox_inches='tight')
+    plt.close(fig)
+    np.savetxt(".".join(out_path.split(".")[:-1])+"_tab.txt", corr, delimiter="\t", header="\t".join(data["labels"]))
 
 def cohen_d(a,b):
     float_a = []
@@ -238,6 +259,7 @@ rule andold:
     input:
         expand("FIGURES/QC/multiqc_fastqc_report.html"),
         expand("FIGURES/PCA/{norm}_t.png", norm=["RPGC", "norm10M"]),
+        expand("FIGURES/HM/{norm}_pearson.png", norm=["RPGC", "norm10M"]),
 
         expand("DATA/BED/q{qval}_{peaktype}peaks_2reps_vs_{norm}_merged_bigwigs_scores_mmb.csv", norm=["RPGC", "norm10M"], 
             qval=["01","02","05"], peaktype=["narrow", "broad"])
@@ -631,4 +653,14 @@ rule deeptools_PCA:
     shell:
         # "plotPCA -in {input} -o {output.reg} ; "
         "plotPCA --transpose -in {input} -o {output.tr}"
+
+rule heatmap_correlation:
+    input:
+        "DATA/BIGWIG/{batch}_bwsummary.npz"
+    output:
+        "FIGURES/HM/{batch}_pearson.png"
+    log:
+        "snakemake_logs/heatmap_correlation/{batch}.log"
+    run:
+        correlation_hm(input[0], output[0])
 
