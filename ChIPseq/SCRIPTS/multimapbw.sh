@@ -9,7 +9,7 @@ opt="p"
 peakfiles=()
 graphfiles=()
 
-while [ "$1" ]; do
+while [ "$1" ]; do ## input files are given as arguments, like this: "multimapbw.sh peakfile1.peak peakfile2.peak ... peakfilen.peak :: bwfile1.bw bwfile2.bw ... bwfilen.bw "
     case $1 in 
         ::) opt="g";;
         *) if [ "$opt" = "p" ]; then peakfiles+=("$1")

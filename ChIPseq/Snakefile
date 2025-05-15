@@ -1,6 +1,6 @@
 """
 
-@version 1.1
+@version 1.1.2
 @author: C Burnard
 
 Pipeline under development for A Oldfield
@@ -119,7 +119,6 @@ def correlation_hm(in_path, out_path):
     plt.close(fig)
     np.savetxt(".".join(out_path.split(".")[:-1])+"_tab.txt", corr, delimiter="\t", header="\t".join(data["labels"]))
     
-
 def cohen_d(a,b):
     float_a = []
     float_b = []
@@ -885,7 +884,7 @@ rule multimapbw:
     log:
         "snakemake_logs/multimapbw/{expdir}_mmb_{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
     shell:
-        "SCRIPTS/multimapbw.sh {input.p} :: {input.b} > {output}"
+        "SCRIPTS/multimapbw"+macos_suffix+".sh {input.p} :: {input.b} > {output}"
 
 rule multimapbw_indiv:
     input:
@@ -896,7 +895,7 @@ rule multimapbw_indiv:
     log:
         "snakemake_logs/multimapbw_indiv/{expdir}_mmb_{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
     shell:
-        "SCRIPTS/multimapbw.sh {input.p} :: {input.b} > {output}"
+        "SCRIPTS/multimapbw"+macos_suffix+".sh {input.p} :: {input.b} > {output}"
 
 rule calculate_multimapbw_indiv_scores:
     input:
