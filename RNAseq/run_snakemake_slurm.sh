@@ -9,6 +9,7 @@
 
 ## run the application below. Example:
 source /home/aoldfield/save/modules/smk/bin/activate ## python virtual environment containing snakemake, MACS3, deeptools
+export LD_LIBRARY_PATH=/tools/devel/python/Python-3.11.1/lib/:$LD_LIBRARY_PATH
 module load bioinfo/fastq_illumina_filter/0.1
 module load bioinfo/FastQC/0.12.1 
 module load bioinfo/bowtie/2.5.1 
