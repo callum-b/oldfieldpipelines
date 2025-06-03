@@ -617,7 +617,7 @@ rule deeptools_bamCoverage_RPGC_se:
         else:
             bl_file = ""
             effective_genome_size = params.genome_size
-        shell("bamCoverage --normalizeUsing RPGC {bl_file} --effectiveGenomeSize {effective_genome_size} -bs {params.bs} --smoothLength {params.smoothLength} "
+        shell("bamCoverage --ignoreDuplicates --normalizeUsing RPGC {bl_file} --effectiveGenomeSize {effective_genome_size} -bs {params.bs} --smoothLength {params.smoothLength} "
                 "-e $(cat {input.prd}) "
                 "-b {input.bam} -o {output} 2>{log}")
 
@@ -642,7 +642,7 @@ rule deeptools_bamCoverage_RPGC_pe:
             bl_file = ""
             effective_genome_size = params.genome_size
 
-        shell("bamCoverage --normalizeUsing RPGC {bl_file} --effectiveGenomeSize {effective_genome_size} -bs {params.bs} --smoothLength {params.smoothLength} -e -b {input.bam} -o {output} 2>{log}")
+        shell("bamCoverage --ignoreDuplicates --normalizeUsing RPGC {bl_file} --effectiveGenomeSize {effective_genome_size} -bs {params.bs} --smoothLength {params.smoothLength} -e -b {input.bam} -o {output} 2>{log}")
 
 rule deeptools_bamCoverage_RPKM_se:
     input:
@@ -665,7 +665,7 @@ rule deeptools_bamCoverage_RPKM_se:
         else:
             bl_file = ""
             effective_genome_size = params.genome_size
-        shell("bamCoverage --normalizeUsing RPKM {bl_file} --effectiveGenomeSize {effective_genome_size} -bs {params.bs} --smoothLength {params.smoothLength} "
+        shell("bamCoverage --ignoreDuplicates --normalizeUsing RPKM {bl_file} --effectiveGenomeSize {effective_genome_size} -bs {params.bs} --smoothLength {params.smoothLength} "
                 "-e $(cat {input.prd}) "
                 "-b {input.bam} -o {output} 2>{log}")
 
@@ -690,7 +690,7 @@ rule deeptools_bamCoverage_RPKM_pe:
             bl_file = ""
             effective_genome_size = params.genome_size
 
-        shell("bamCoverage --normalizeUsing RPKM {bl_file} --effectiveGenomeSize {effective_genome_size} -bs {params.bs} --smoothLength {params.smoothLength} -e -b {input.bam} -o {output} 2>{log}")
+        shell("bamCoverage --ignoreDuplicates --normalizeUsing RPKM {bl_file} --effectiveGenomeSize {effective_genome_size} -bs {params.bs} --smoothLength {params.smoothLength} -e -b {input.bam} -o {output} 2>{log}")
 
 rule deeptools_bigwigAverage:
     input:

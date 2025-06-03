@@ -8,11 +8,11 @@
 #SBATCH --partition=workq
 
 ## run the application below. Example:
+source /home/aoldfield/save/modules/smk/bin/activate ## python virtual environment containing snakemake, MACS3, deeptools
 module load bioinfo/fastq_illumina_filter/0.1
 module load bioinfo/FastQC/0.12.1 
 module load bioinfo/bowtie/2.5.1 
 module load bioinfo/samtools/1.20 
-module load bioinfo/MACS/3.0.0
 
 # snakemake -np call_all_peaks_autodetect ## run no jobs, print list of jobs and their params that would be run for job call_all_peaks_autodetect
 # snakemake -p --forceall --dag call_all_peaks_autodetect  | dot -Tsvg >dag_$SLURM_JOB_ID.svg ## run no jobs, create plot of the DAG of jobs to run for rule call_all_peaks_autodetect (unsure if this works on Genotoul tbh, dot requires graphviz)

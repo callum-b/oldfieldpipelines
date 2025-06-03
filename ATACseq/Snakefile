@@ -526,7 +526,7 @@ rule deeptools_bamCoverage_RPGC_pe:
             bl_file = ""
             effective_genome_size = params.genome_size
 
-        shell("bamCoverage --normalizeUsing RPGC {bl_file} --effectiveGenomeSize {effective_genome_size} -bs {params.bs} --smoothLength {params.smoothLength} -e -b {input.bam} -o {output} 2>{log}")
+        shell("bamCoverage --ignoreDuplicates --normalizeUsing RPGC {bl_file} --effectiveGenomeSize {effective_genome_size} -bs {params.bs} --smoothLength {params.smoothLength} -e -b {input.bam} -o {output} 2>{log}")
 
 rule deeptools_bamCoverage_RPKM_pe:
     input:
@@ -549,7 +549,7 @@ rule deeptools_bamCoverage_RPKM_pe:
             bl_file = ""
             effective_genome_size = params.genome_size
 
-        shell("bamCoverage --normalizeUsing RPKM {bl_file} --effectiveGenomeSize {effective_genome_size} -bs {params.bs} --smoothLength {params.smoothLength} -e -b {input.bam} -o {output} 2>{log}")
+        shell("bamCoverage --ignoreDuplicates --normalizeUsing RPKM {bl_file} --effectiveGenomeSize {effective_genome_size} -bs {params.bs} --smoothLength {params.smoothLength} -e -b {input.bam} -o {output} 2>{log}")
 
 rule deeptools_bigwigAverage:
     input:
@@ -559,7 +559,7 @@ rule deeptools_bigwigAverage:
     log:
         "snakemake_logs/deeptools_bigwigAverage/{expconds}_merge{pe}_{norm}.log"
     params:
-        bs=config.get("deeptools_bamAverage_bs", "5")
+        bs=config.get("deeptools_bigwigAverage_bs", "5")
     run:
         if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
             bl_file = "-bl " + config["excluded_regions"]
