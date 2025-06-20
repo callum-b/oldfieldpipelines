@@ -2,17 +2,11 @@ This is for users of C BURNARD's Snakemake pipeline who happen to have a Mac. Pl
 
 ## Step 1: Install Miniconda (if not already installed)
 
-Open your browser and go to: https://docs.conda.io/en/latest/miniconda.html
-
-Download the Miniconda installer for macOS (Apple M1/M2 or Intel) — choose the right one for your machine.
+Open your browser and go to: https://www.anaconda.com/docs/getting-started/miniconda/install#mac-os and scroll down to "Quickstart install instructions"
 
 Open Terminal (search “Terminal” in Spotlight).
 
-Run the downloaded installer, something like:
-
-bash ~/Downloads/Miniconda3-latest-MacOSX-arm64.sh
-
-Follow the prompts and say yes to adding it to your PATH.
+Copy and paste the installation code (watch out, there should be two options: Apple Silicon or Intel, depending on the hardware of your Mac. If your Mac is M1/M2 then choose Apple Silicon, otherwise look it up.)
 
 Close and reopen the Terminal.
 
@@ -20,26 +14,29 @@ Close and reopen the Terminal.
 
 In Terminal, run the following commands:
 
-cd /path/to/oldfieldpiepelines   # Navigate to your project folder
+cd /path/to/oldfieldpipelines   # Navigate to your project folder
 
 conda env create -f miniconda_smk_chipseq.yaml
 
 OR if you're having issues with the YAML file format:
 ```
+# Process recap:
 # Step 1: Create the environment
+# Step 2: Activate the environment
+# Step 3: Add necessary channels (if not already configured)
+# Step 4: Install dependencies
+# Step 5: Install problematic dependencies with pip
+
+
 conda create -n smk_chipseq python=3.10.14 -y
 
-# Step 2: Activate the environment
 conda activate smk_chipseq
 
-# Step 3: Add necessary channels (if not already configured)
 conda config --add channels conda-forge
 conda config --add channels bioconda
 
-# Step 4: Install dependencies
 conda install -y \
   pysam=0.22 \
-  macs3=3.0.1 \
   deeptools=3.5.5 \
   snakemake=7.32.4 \
   matplotlib=3.8.4 \
@@ -47,11 +44,12 @@ conda install -y \
   bowtie2=2.5.4 \
   fastqc=0.12.1 \
   jinja2=3.1.4 \
-  graphviz=0.11 \
   pulp=2.7 \
   pygments=2.15.1 \
   bedtools=2.31.1 \
   multiqc=1.28
+
+pip install macs3=3.0.1 graphviz
 
 ```
 This installs all necessary tools into a named environment called smk_chipseq.
