@@ -37,7 +37,7 @@ You may also add the ".filtered" tag in your file names. It is possible to use e
 
 To start, clone this repo or download it as a zip and unzip it.
 
-**!!MAC USERS!!** you will need to have Homebrew installed. Also, you need to comment out the lines for pysam, deeptools, macs and multiqc in smk_chipseq.yaml (add a # before the - for that line). Once you have created and activated your environment, download them using pip (something like `pip install pysam==0.22 deeptools==3.5.5 macs3==3.0.1 multiqc==1.28`)
+**!!MAC USERS!!** you will need to have Homebrew installed. Also, follow the instructions in the MacOS ReadMe file to install miniconda, micromamba has issues on MacOS. The rest should be the same.
 
 First, install micromamba:
 

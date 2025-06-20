@@ -44,6 +44,7 @@ import math
 
 ### GLOBAL VARIABLES ###
 MAX_CORES = cpu_count()
+genome_release = config.get("STAR_genome_release", "47")
 
 wildcard_constraints:
     sample_sp = r".+(?<!_pe)", # use this wildcard when using software that requires specific input/options for single end or paired end reads
@@ -56,6 +57,43 @@ wildcard_constraints:
 ### FUNCTIONS ###
 
 ## General functions
+def build_genecounts_csv(data_in, data_out, gene_info):
+    info = {}
+    with open(gene_info, "r") as g:
+        for myline in g.readlines():
+            linesplit = myline.split("\t")
+            info[linesplit[0]] = linesplit[1] + "\t" + linesplit[2]
+    header = "gene_id\tgene_name\tgene_type\tunstranded_reads\treads_fw\treads_rv\n"
+    with open(data_out, "w") as o:
+        with open(data_in, "r") as i:
+            o.write(header)
+            for myline in i.readlines():
+                linesplit = myline.split("\t")
+                if linesplit[0] in info:
+                    o.write(linesplit[0] + "\t" + info[linesplit[0]].rstrip() + "\t")
+                else:
+                    o.write(linesplit[0] + "\t.\t.\t")
+                o.write("\t".join(linesplit[1:]))
+
+def build_salmon_tpm_names(data_in, data_out, transcript_names):
+    info = {}
+    with open(transcript_names, "r") as g:
+        for myline in g.readlines():
+            myline = myline.lstrip(">").rstrip()
+            # print(myline)
+            linesplit = myline.split("|")
+            # print(linesplit[0])
+            info[linesplit[0]] = myline
+    with open(data_out, "w") as o:
+        with open(data_in, "r") as i:
+            for myline in i.readlines():
+                linesplit = myline.split("\t")
+                #print(linesplit[0])
+                if linesplit[0] in info:
+                    o.write(info[linesplit[0]] + "\t" + "\t".join(linesplit[1:]))
+                else:
+                    o.write(myline)
+
 
 
 ## Rule-specific input functions
@@ -66,8 +104,10 @@ def get_fingerprint_bam_bams(wildcards):
 def get_fingerprint_bam_bais(wildcards):
     return "0"
 
-
-
+def get_salmon_quant_files(wildcards):
+    return sorted(set(
+        [x.replace("FASTQ", "CSV").replace(".filtered", "").replace("_fw", "").replace("_rv", "").replace(".fq.gz", "_named_quant.csv") for x in glob.glob("DATA/FASTQ/"+wildcards.expdir+"/*fq.gz")]
+    ))
 
 
 ### BIG PICTURE RULES ###
@@ -76,16 +116,21 @@ def get_fingerprint_bam_bais(wildcards):
 ## AUTODETECT RULES
 ## These use the file naming and folder architecture to find which data files to run on automatically
 
-
-
 ## USER SPECIFIED RULES
 ## These use the config file to find which data files to run on
 
+rule PolyA:
+    input:
+        "DATA/CSV/PolyA/TPM_counts.csv",
+        "DATA/CSV/PolyA/raw_counts.csv"
+
 rule first_test:
     input:
+        "DATA/CSV/first_test/D1_1_named_quant.csv"
+
+rule align:
+    input:
         "DATA/TEMP/v47/first_test/D1_1_Aligned.sortedByCoord.out.bam"
-
-
 
 ### SPECIFIC RULES ###
 ## These run each specific tool needed to complete the whole pipeline.
@@ -153,60 +198,182 @@ rule illumina_filtering:
 
 rule wget_genome_sequence:
     output:
-        temp("GRCh38.v{release}.primary_assembly.genome.fa")
+        temp("GRCh38.v" + genome_release + ".primary_assembly.genome.fa")
     log:
-        "snakemake_logs/wget_genome_v{release}_sequence.log"
+        "snakemake_logs/wget_genome_v" + genome_release + "_sequence.log"
     priority: 2
     shell:
-        "wget https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_{wildcards.release}/GRCh38.primary_assembly.genome.fa.gz ; mv GRCh38.primary_assembly.genome.fa.gz {output}.gz ; gunzip {output}.gz"
+        "wget https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_" + genome_release + "/GRCh38.primary_assembly.genome.fa.gz ; mv GRCh38.primary_assembly.genome.fa.gz {output}.gz ; gunzip {output}.gz"
+
+rule wget_transcriptome_sequence:
+    output:
+        temp("gencode.v" + genome_release + ".transcripts.fa")
+    log:
+        "snakemake_logs/wget_genome_v" + genome_release + "_sequence.log"
+    priority: 2
+    shell:
+        "wget https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_" + genome_release + "/gencode.v" + genome_release + ".transcripts.fa.gz ; gunzip {output}.gz"
 
 rule wget_genome_annotation:
     output:
-        temp("gencode.v{release}.annotation.gtf")
+        temp("gencode.v" + genome_release + ".annotation.gtf")
     log:
-        "snakemake_logs/wget_genome_v{release}_annotation.log"
+        "snakemake_logs/wget_genome_v" + genome_release + "_annotation.log"
     priority: 2
     shell:
-        "wget https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_{wildcards.release}/gencode.v{wildcards.release}.annotation.gtf.gz ; gunzip {output}.gz"
+        "wget https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_" + genome_release + "/gencode.v" + genome_release + ".annotation.gtf.gz ; gunzip {output}.gz"
+
+rule simplify_transcript_IDs: ## should change this and add step where filter for coding stuff. Keep: protein coding (+CDS not defined), lncRNA, miRNA, misc_RNA, snoRNA, transcribed pro, unpro pseudo
+    input:
+        "gencode.v" + genome_release + ".transcripts.fa"
+    output:
+        tr=temp("gencode.v" + genome_release + ".transcripts.simplifiedIDs.fa"),
+        ids="gencode.v" + genome_release + ".transcripts.IDs.txt"
+    log:
+        "snakemake_logs/simplify_transcript_IDs/v" + genome_release + ".log"
+    shell:
+        "grep '>' {input} > {output.ids} ; "
+        "sed -E 's/\|.+//g' {input} > {output.tr}" 
 
 rule STAR_build_genome_index:
     input:
-        g="GRCh38.v{release}.primary_assembly.genome.fa",
-        a="gencode.v{release}.annotation.gtf"
+        g="GRCh38.v" + genome_release + ".primary_assembly.genome.fa",
+        a="gencode.v" + genome_release + ".annotation.gtf"
     output:
-        "DATA/GENOMES/STAR/v{release}/exonInfo.tab"
+        "DATA/GENOMES/STAR/v" + genome_release + "/exonInfo.tab"
     log:
-        "snakemake_logs/STAR_build_genome_v{release}_index.log"
+        "snakemake_logs/STAR_build_genome_v" + genome_release + "_index.log"
     priority: 2
-    threads: 2 # NTHREADS
+    threads: 12 # NTHREADS ## 12 threads and 36GB of memory (specify in slurm file!!) needed for HG38 according to A Dobin
     shell:
-        "STAR --runThreadN {threads} --runMode genomeGenerate --genomeDir DATA/GENOMES/STAR/v{wildcards.release} --genomeFastaFiles {input.g} --sjdbGTFfile {input.a} ; cp {input.a} DATA/GENOMES/"
+        "STAR --runThreadN {threads} --runMode genomeGenerate --genomeDir DATA/GENOMES/STAR/v" + genome_release + " --genomeFastaFiles {input.g} --sjdbGTFfile {input.a} --limitGenomeGenerateRAM 36000000000 ; cp {input.a} DATA/GENOMES/ "
 
 rule STAR_align:
     input:
         fw="DATA/FASTQ/{sample_sp}_fw.filtered.fq.gz",
         rv="DATA/FASTQ/{sample_sp}_rv.filtered.fq.gz",
-        g="DATA/GENOMES/STAR/v{release}/exonInfo.tab"
+        g="DATA/GENOMES/STAR/v" + genome_release + "/exonInfo.tab"
     output:
-        "DATA/TEMP/v{release}/{sample_sp}_Aligned.sortedByCoord.out.bam" ## might need to list out all the output files STAR creates (a lot) https://sydney-informatics-hub.github.io/training-RNAseq/03-MapReads/index.html
+        "DATA/TEMP/v" + genome_release + "/{sample_sp}_Aligned.sortedByCoord.out.bam" ## might need to list out all the output files STAR creates (a lot) https://sydney-informatics-hub.github.io/training-RNAseq/03-MapReads/index.html
     log:
-        "snakemake_logs/STAR_align/{sample_sp}_v{release}.log"
+        "snakemake_logs/STAR_align/{sample_sp}_v" + genome_release + ".log"
     priority: 2
     threads: 16 # NTHREADS
     shell:
         "STAR --runThreadN {threads} "
         "--readFilesCommand zcat "
         "--readFilesIn {input.fw} {input.rv} "
-        "--genomeDir DATA/GENOMES/STAR/v{wildcards.release}/ "
-        "--sjdbGTFfile DATA/GENOMES/gencode.v{wildcards.release}.annotation.gtf "
+        "--genomeDir DATA/GENOMES/STAR/v" + genome_release + "/ "
+        "--sjdbGTFfile DATA/GENOMES/gencode.v" + genome_release + ".annotation.gtf "
 
-        "--outFileNamePrefix DATA/TEMP/v{wildcards.release}/{wildcards.sample_sp}"
+        "--outFileNamePrefix DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_ "
         
-        "--quantMode GeneCounts "
+        "--quantMode TranscriptomeSAM "
         "--outReadsUnmapped Fastx "
         "--outMultimapperOrder Random "
         "--outSAMtype BAM SortedByCoordinate --outSAMattributes All "
         "--outWigType wiggle "
+        "--outWigNorm None "
+        "--outFilterMultimapNmax 3 "
 
+rule sort_STAR_output:
+    input:
+        "DATA/TEMP/v" + genome_release + "/{sample_sp}_Aligned.sortedByCoord.out.bam"
+    output: ## a whole bunch of stuff
+        bam="DATA/BAM/{sample_sp}_Aligned.sortedByCoord.out.bam",
+        tbam=temp("DATA/BAM/{sample_sp}_Aligned.toTranscriptome.out.bam"),
+        sjtab="DATA/CSV/{sample_sp}_SJ.out.tab",
+        umbw1="DATA/BIGWIG/{sample_sp}_fw.bw",
+        umbw2="DATA/BIGWIG/{sample_sp}_rv.bw"
+    log:
+        "snakemake_logs/sort_STAR_output/{sample_sp}.log"
+    shell:
+        "mv {input} {output.bam} ; "
+        "mv DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_Aligned.toTranscriptome.out.bam {output.tbam} ; "
+        "mv DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_SJ.out.tab {output.sjtab} ; "
+        "awk '{{if( length($2)>12 ){{exit}} print }}' DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_Signal.UniqueMultiple.str1.out.wig > DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_fixedwig1 ;"
+        "SCRIPTS/wigToBigWig DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_fixedwig1 DATA/GENOMES/HG38_chrom_sizes.tsv {output.umbw1} ; "
+        "awk '{{if( length($2)>12 ){{exit}} print }}' DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_Signal.UniqueMultiple.str2.out.wig > DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_fixedwig2 ;"
+        "SCRIPTS/wigToBigWig DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_fixedwig2 DATA/GENOMES/HG38_chrom_sizes.tsv {output.umbw2} ; "
+        "rm -rf DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_*"
 
+rule samtools_sort:
+    input:
+        "DATA/BAM/{sample}.bam"
+    output:
+        temp("DATA/BAM/{sample}.sorted.bam")
+    log:
+        "snakemake_logs/samtools_sort/{sample}.log"
+    threads: 7 # NTHREADS !! samtools uses 'additional threads' !!
+    shell:
+        "samtools sort -@ {threads} -O BAM {input} -o {output} 2>{log}"
 
+rule samtools_index:
+    input:
+        "DATA/BAM/{sample}.sorted.bam"
+    output:
+        temp("DATA/BAM/{sample}.sorted.bam.bai")
+    log:
+        "snakemake_logs/samtools_index/{sample}.log"
+    threads: 7 # NTHREADS !! samtools uses 'additional threads' !!
+    shell:
+        "samtools index -@ {threads} {input} 2>{log}"
+
+rule salmon_tpms:
+    input:
+        tbam="DATA/BAM/{sample_sp}_Aligned.toTranscriptome.out.sorted.bam",
+        tbai="DATA/BAM/{sample_sp}_Aligned.toTranscriptome.out.sorted.bam",
+        tfa="gencode.v" + genome_release + ".transcripts.simplifiedIDs.fa"
+    output:
+        temp("DATA/CSV/{sample_sp}/quant.sf"),
+        temp("DATA/CSV/{sample_sp}/logs/salmon_quant.log")
+    log:
+        "snakemake_logs/salmon_tpms/{sample_sp}.log"
+    threads: 8
+    shell:
+        "salmon quant -t {input.tfa} -l A -a {input.tbam} -o DATA/CSV/{wildcards.sample_sp} 2>/dev/null" ## need to remove log or will fill up memory really fast
+
+rule complete_salmon_output_IDs:
+    input:
+        data="DATA/CSV/{sample_sp}/quant.sf", 
+        ids="gencode.v" + genome_release + ".transcripts.IDs.txt"
+    output:
+        "DATA/CSV/{sample_sp}_named_quant.csv"
+    log:
+        "snakemake_logs/complete_salmon_output_IDs/{sample_sp}.log"
+    run:
+        build_salmon_tpm_names(input[0], output[0], input[1])
+
+rule build_tpm_count_matrix:
+    input:
+        get_salmon_quant_files
+    output:
+        "DATA/CSV/{expdir}/TPM_counts.csv"
+    log:
+        "snakemake_logs/build_tpm_count_matrix/{expdir}_tpms.log"
+    run:
+        shell("echo 'transcript_ID\t" +
+            "\t".join([x.split("/")[-1].replace("_named_quant.csv", "") for x in input]) + 
+            "' > " + output[0])
+        to_run = "paste <(tail -n +2 " + input[0] + " | cut -f 1 ) " ## get transcript IDs
+        for i in range(len(input)):
+            to_run += "<(tail -n +2 " + input[i] + " | cut -f 4 ) " ## TPMs should be in col 4 of Salmon output 
+        to_run += " >> " + output[0]
+        shell(to_run)
+
+rule build_raw_count_matrix:
+    input:
+        get_salmon_quant_files
+    output:
+        "DATA/CSV/{expdir}/raw_counts.csv"
+    log:
+        "snakemake_logs/build_raw_count_matrix/{expdir}_raws.log"
+    run:
+        shell("echo 'transcript_ID\t" +
+            "\t".join([x.split("/")[-1].replace("_named_quant.csv", "") for x in input]) + 
+            "' > " + output[0])
+        to_run = "paste <(tail -n +2 " + input[0] + " | cut -f 1 ) " ## get transcript IDs
+        for i in range(len(input)):
+            to_run += "<(tail -n +2 " + input[i] + " | cut -f 5 ) " ## raw counts should be in col 5 of Salmon output 
+        to_run += " >> " + output[0]
+        shell(to_run)
