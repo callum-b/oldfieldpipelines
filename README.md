@@ -90,6 +90,8 @@ Close and reopen the Terminal.
 In Terminal, run the following commands:
 
 ```
+conda init zsh 
+
 conda create -n smk_chipseq python=3.10.14 -y
 
 conda activate smk_chipseq
