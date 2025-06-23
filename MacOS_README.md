@@ -8,6 +8,8 @@ Open Terminal (search “Terminal” in Spotlight).
 
 Copy and paste the installation code (watch out, there should be two options: Apple Silicon or Intel, depending on the hardware of your Mac. If your Mac is M1/M2 then choose Apple Silicon, otherwise look it up.)
 
+Be sure to run the "source" command after the main block of code in that section, it shows your computer where to find the program you just installed! (You may need to run that each time you want to activate the environment, still investigating this issue)
+
 Close and reopen the Terminal.
 
 ## Step 2: Create the Environment
@@ -49,7 +51,7 @@ conda install -y \
   bedtools=2.31.1 \
   multiqc=1.28
 
-pip install macs3=3.0.1 graphviz
+pip install macs3==3.0.1 graphviz
 
 snakemake --version
 

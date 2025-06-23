@@ -51,6 +51,8 @@ Third, activate that environment:
 
 `micromamba activate smk_chipseq`
 
+If you are not admin of your computer, you may have issues running some of the scripts included in this pipeline. If so, you can try copying those scripts from the "commun" section of archive (if you're at the IGH), otherwise, reach out to your IT department.
+
 If you're just starting out and want to run this pipeline on the test data provided, run
 
 ```

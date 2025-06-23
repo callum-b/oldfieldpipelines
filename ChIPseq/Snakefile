@@ -607,7 +607,7 @@ rule deeptools_bamCoverage_RPGC_se:
         "snakemake_logs/deeptools_bamCoverage_RPGC/{sample_sp}.log"
     params:
         genome_size = 2913022398,
-        bs=config.get("deeptools_bamCoverage_RPGC_se_bs", "20"),
+        bs=config.get("deeptools_bamCoverage_RPGC_se_bs", "5"),
         smoothLength=config.get("deeptools_bamCoverage_RPGC_se_smoothLength", "0")
     run:
         if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
@@ -631,7 +631,7 @@ rule deeptools_bamCoverage_RPGC_pe:
         "snakemake_logs/deeptools_bamCoverage_RPGC/{sample_sp}_pe.log"
     params:
         genome_size = 2913022398,
-        bs=config.get("deeptools_bamCoverage_RPGC_pe_bs", "20"),
+        bs=config.get("deeptools_bamCoverage_RPGC_pe_bs", "5"),
         smoothLength=config.get("deeptools_bamCoverage_RPGC_pe_smoothLength", "0")
     run:
         if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
@@ -655,7 +655,7 @@ rule deeptools_bamCoverage_RPKM_se:
         "snakemake_logs/deeptools_bamCoverage_RPKM/{sample_sp}.log"
     params:
         genome_size = 2913022398,
-        bs=config.get("deeptools_bamCoverage_RPKM_se_bs", "20"),
+        bs=config.get("deeptools_bamCoverage_RPKM_se_bs", "5"),
         smoothLength=config.get("deeptools_bamCoverage_RPKM_se_smoothLength", "0")
     run:
         if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
@@ -679,7 +679,7 @@ rule deeptools_bamCoverage_RPKM_pe:
         "snakemake_logs/deeptools_bamCoverage_RPKM/{sample_sp}_pe.log"
     params:
         genome_size = 2913022398,
-        bs=config.get("deeptools_bamCoverage_RPKM_pe_bs", "20"),
+        bs=config.get("deeptools_bamCoverage_RPKM_pe_bs", "5"),
         smoothLength=config.get("deeptools_bamCoverage_RPKM_pe_smoothLength", "0")
     run:
         if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
@@ -700,7 +700,7 @@ rule deeptools_bigwigAverage:
     log:
         "snakemake_logs/deeptools_bigwigAverage/{expdir}_{ChIP}_{expconds}_merge{pe}_{norm}.log"
     params:
-        bs=config.get("deeptools_bamAverage_bs", "20")
+        bs=config.get("deeptools_bamAverage_bs", "5")
     run:
         if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
             bl_file = "-bl " + config["excluded_regions"]
@@ -717,7 +717,7 @@ rule deeptools_bigwigCompare:
     log:
         "snakemake_logs/deeptools_bigwigCompare/{expdir}_{ChIP}_{expconds}_{rep}{pe}_{norm}.log"
     params:
-        bs=config.get("deeptools_bamCompare_bs", "20")
+        bs=config.get("deeptools_bamCompare_bs", "5")
     run:
         if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
             bl_file = "-bl " + config["excluded_regions"]
