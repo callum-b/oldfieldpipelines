@@ -8,7 +8,9 @@ Open Terminal (search “Terminal” in Spotlight).
 
 Copy and paste the installation code (watch out, there should be two options: Apple Silicon or Intel, depending on the hardware of your Mac. If your Mac is M1/M2 then choose Apple Silicon, otherwise look it up.)
 
-Be sure to run the "source" command after the main block of code in that section, it shows your computer where to find the program you just installed! (You may need to run that each time you want to activate the environment, still investigating this issue)
+Be sure to run the "source" command after the main block of code in that section, it shows your computer where to find the program you just installed! Then, run this so that it will always be visible to your computer:
+
+echo 'export PATH="$HOME/miniconda3/condabin:$PATH"' >> ~/.zshrc
 
 Close and reopen the Terminal.
 
@@ -52,6 +54,7 @@ conda install -y \
   multiqc=1.28
 
 pip install macs3==3.0.1 graphviz
+
 
 snakemake --version
 
