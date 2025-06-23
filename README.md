@@ -1,4 +1,4 @@
-# OldfieldPipelines - Oldfield team ChIP-seq data analysis pipeline
+# OldfieldPipelines - Oldfield team NGS data analysis pipeline
 
 Bioinformatic analyses snakemake pipelines developed for A Oldfield's team
 
@@ -9,7 +9,7 @@ If you have never used Snakemake before at all, you might want to go over the ba
 
 This pipeline expects a certain folder architecture, which should have been created when you cloned this git repo or unzipped the tarball that contained this README.
 
-## General features
+# General features
 
 This pipeline contains a certain number of "autodetect" rules. They are designed to locate files in your DATA/ folder and run the individual rules on those files. 
 They do however require the files to be named and sorted in a certain manner to detect them. They should be organised and named as so:
@@ -33,11 +33,11 @@ Input files have no replicate number. One input will be used for all the replica
 If you also obtained the test data, you should see the naming convention for the fastq files. If there are two separate files for a paired-end experiment, the two files should be tagged as "_fw" and _"rv" for forward and reverse. Once aligned, the files will bear the "_pe" tag.
 You may also add the ".filtered" tag in your fastq file names. It is possible to use externally processed files in the pipeline, but this should be done with some care. I'd recommend looking into how Snakemake handles inputs and outputs, and then inspecting the Snakefile to look at the relevant rules you'll be bypassing.
 
-## Local usage 
+# Local usage 
 
 To start, clone this repo or download it as a zip and unzip it. Open up a terminal, then navigate into the folder created when you unzipped it.
 
-### Setting up the environment 
+## Setting up the environment 
 
 The following instructions are provided first for Linux distribution then for MacOS. If you use Windows, I would recommend installing a Linux VM on your machine, for example using WSL2. Youshould only need to run these steps once.
 
@@ -47,13 +47,13 @@ Once the environment is set up, if you are not admin of your computer, you may h
 
 If you want to align this data to HG38, you can download the necessary genome files here: https://genome-idx.s3.amazonaws.com/bt/GRCh38_noalt_as.zip (or perhaps browse other versions and mirror URLs here: https://bowtie-bio.sourceforge.net/bowtie2/manual.shtml). You will need to navigate to the Genomes folder of the relevant pipeline and place it there for ChIPseq or ATACseq. For RNAseq, the genome setup is part of the pipeline.
 
-#### Linux distributions
+### Linux distributions
 
-##### Installing micromamba:
+#### Installing micromamba:
 
 >    https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html
 
-##### Creating the environment
+#### Creating the environment
 
 The environment is described in the config file: 
 
@@ -67,11 +67,11 @@ cd ../../..
 ```
 
 
-#### MacOS
+### MacOS
 
 You will most likely need to have Homebrew installed.
 
-##### Download Miniconda
+#### Download Miniconda
 
 Open your browser and go to: https://www.anaconda.com/docs/getting-started/miniconda/install#mac-os and scroll down to "Quickstart install instructions"
 
@@ -85,7 +85,7 @@ echo 'export PATH="$HOME/miniconda3/condabin:$PATH"' >> ~/.zshrc
 
 Close and reopen the Terminal.
 
-##### Create the environment
+#### Create the environment
 
 In Terminal, run the following commands:
 
@@ -122,11 +122,11 @@ snakemake --version
 This installs all necessary tools into a named environment called smk_chipseq.
 
 
-### Activating your environment
+## Activating your environment
 
 You'll need to do this each time you open a new terminal to run the Snakemake pipeline.
 
-#### Linux distributions
+### Linux distributions
 
 To activate the environment: 
 
@@ -139,7 +139,7 @@ And to exit the environment:
 `micromamba deactivate`
 
 
-#### MacOS
+### MacOS
 
 To activate the environment: 
 
@@ -151,9 +151,9 @@ And to exit the environment:
 
 `conda deactivate`
 
-### Running the pipeline
+## Running the pipeline
 
-#### Data preparation
+### Data preparation
 
 If you're just starting out and want to run this pipeline on the test data provided, run
 
@@ -172,7 +172,7 @@ cp path/to/my/files/*.fq.gz DATA/FASTQ/my_experiment
 
 And then you should be ready to run the rules listed in Snakefile. 
 
-#### Different rules
+### Different rules
 
 Start by checking out which tools will be run (and the shell commands used) using a "dry-run":
 
@@ -188,7 +188,7 @@ You should now be ready to run the pipeline on your device. How many cores you d
 
 If you cancel the Snakemake pipeline at some point (using Ctrl+C) or if a rule crashes, you may need to use `snakemake --unlock` to enable it to run again. You might also want to consider using `snakemake --keep-going --rerun-incomplete --cores=...` to keep the pipeline running even if one job fails, and to restart any job that failed or was cancelled in a previous run.
 
-## Cluster usage 
+# Cluster usage 
 
 If you want to run this on a cluster that uses SLURM (like GenoToul), you can use the run_snakemake_slurm.sh script as a template (it is meant to be run using sbatch). If you're not using GenoToul, you'll probably need to adjust quite a few of the parametres and maybe load the tools differently (GenoToul uses modules).
 
@@ -198,7 +198,7 @@ Just unzip this on your server, edit run_snakemake_slurm.sh (needs at least your
 
 This will run the rule specified in the script. If you want to run a different rule, you need to edit that script. You'll also see a bunch of other options appended to the command line. Feel free to edit those at your own risk.
 
-## Parameters 
+# Parameters 
 
 A config.yaml file should be present in the directory in which you unzipped this tarball. It already contains a few parameters required for the pipeline to run, like the path to the genome for alignment.
 
