@@ -51,6 +51,10 @@ conda install -y \
 
 pip install macs3=3.0.1 graphviz
 
+snakemake --version
+
+
+
 ```
 This installs all necessary tools into a named environment called smk_chipseq.
 
@@ -60,6 +64,10 @@ This installs all necessary tools into a named environment called smk_chipseq.
 Once the install is complete:
 
 conda activate smk_chipseq
+
+And to exit the environment:
+
+conda deactivate
 
 You’ll now see (smk_chipseq) at the start of your terminal prompt, which means you're using the correct tools.
 
