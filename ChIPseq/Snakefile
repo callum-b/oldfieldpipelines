@@ -291,9 +291,7 @@ rule andold_autodetect:
         expand("FIGURES/PCA/{expdir}/norm10M_t.png", expdir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
         expand("FIGURES/HM/{expdir}/norm10M_pearson.png", expdir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
         
-        
-        expand("DATA/PEAKS/{full_exp}_q{qval}_peaks.narrowPeak", full_exp=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"]),
-        expand("DATA/PEAKS/{full_exp}_q{qval}_peaks.broadPeak", full_exp=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"]),
+        expand("DATA/PEAKS/{full_exp}_q{qval}_peaks.{peaktype}Peak", full_exp=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"], peaktype=["narrow", "broad"]),
         expand("DATA/BED/{full_exp}_q{qval}_{peaktype}peaks_vs_norm10M_inorm_merged_bigwigs_scores_mmb.csv", 
             full_exp=set( "_".join(x.replace("_pe", "").split("_")[:-2]) for x in find_full_exp_names("DATA/FASTQ/")), qval=["01","02","05"], peaktype=["narrow", "broad"])
 
@@ -709,7 +707,7 @@ rule deeptools_bigwigAverage:
     log:
         "snakemake_logs/deeptools_bigwigAverage/{expdir}_{ChIP}_{expconds}_merge{pe}_{norm}.log"
     params:
-        bs=config.get("deeptools_bamAverage_bs", "5")
+        bs=config.get("deeptools_bigwigAverage_bs", "5")
     run:
         if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
             bl_file = "-bl " + config["excluded_regions"]

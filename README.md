@@ -194,6 +194,15 @@ There are a few different rules available to run, in particular for the ChIPseq 
  - call_broad_peaks: call broad peaks (Requires user input. See final section of this README)
  - call_bdg_peaks: call peaks using bdgpeakcall (Requires user input. See final section of this README)
 
+#### ATACseq
+
+ - andold_autodetect: runs the main steps of the ATACseq analysis pipeline, as specified by A OLDFIELD
+ - PCA_all_bws: calculates a PCA for each experiment directory
+
+#### RNAseq
+
+ - andold_autodetect: runs the main steps of the RNAseq analysis pipeline, as specified by A OLDFIELD
+
 ### Different commands
 
 Start by checking out which tools will be run (and the shell commands used) using a "dry-run":
@@ -209,6 +218,10 @@ You should now be ready to run the pipeline on your device. How many cores you d
 `snakemake --cores=4 andold_autodetect`
 
 If you cancel the Snakemake pipeline at some point (using Ctrl+C) or if a rule crashes, you may need to use `snakemake --unlock` to enable it to run again. You might also want to consider using `snakemake --keep-going --rerun-incomplete --cores=...` to keep the pipeline running even if one job fails, and to restart any job that failed or was cancelled in a previous run.
+
+The "--keep-going" option can also be quite useful when running datasets that don't necessarily meet the expected setup of files (multiple replicates, multiple time point), like public data downloaded from GEO.
+
+There is a "--notemp" option which you can use if you want to keep temporary files usually deleted during the running of the pipeline, however be sure that you have a lot of storage space available as it will keep ALL the files (filtered FASTQ, SAM, BAM, BED of mapping...).
 
 # Cluster usage 
 
