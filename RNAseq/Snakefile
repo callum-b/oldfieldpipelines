@@ -127,7 +127,8 @@ def get_salmon_quant_files(wildcards):
 rule PolyA:
     input:
         "DATA/CSV/PolyA/TPM_counts.csv",
-        "DATA/CSV/PolyA/raw_counts.csv"
+        "DATA/CSV/PolyA/raw_counts.csv",
+        "DATA/CSV/PolyA/deseq2_out_signif_hits.csv"
 
 rule first_test:
     input:
@@ -387,8 +388,10 @@ rule diffexp:
     input:
         get_salmon_quant_files
     output:
-        "" ## transcript level DE + gene level + summary for each?
+        "DATA/CSV/{expdir}/raws_gene.csv",
+        "DATA/CSV/{expdir}/tpms_gene.csv",
+        "DATA/CSV/{expdir}/deseq2_out_signif_hits.csv"
     log:
         "snakemake_logs/diffexp/{expdir}.log"
     shell:
-        "Rscript SCRIPTS/... <OUTPUT_PREFIX> {input}" ## watch out input is an array of files
+        "Rscript SCRIPTS/diffexp.r --no-environ {wildcards.expdir}/ {input}" 

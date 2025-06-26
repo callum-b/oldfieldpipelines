@@ -70,10 +70,39 @@ full_mapping[rownames(mapping),]$hgnc_symbol = mapping$hgnc_symbol
 full_mapping[is.na(full_mapping)] = "x"
 full_mapping[full_mapping == ""] = "x"
 
-txi = tximport(files, type="salmon", tx2gene=tx2gene)
+txi = tximport(files, type="salmon", tx2gene=tx2gene, countsFromAbundance = "no")
+
+txi_tpm = data.frame(txi$abundance)
+colnames(txi_tpm) = files
+txi_tpm$ensembl_gene_id = full_mapping[rownames(txi_tpm),]$ensembl_gene_id;
+txi_tpm$hgnc_symbol = full_mapping[rownames(txi_tpm),]$hgnc_symbol;
+txi_tpm$entrezgene_id = rownames(txi_tpm)
+meta_cols = c("entrezgene_id", "ensembl_gene_id", "hgnc_symbol")
+data_cols = setdiff(colnames(txi_tpm), meta_cols)
+txi_tpm = txi_tpm[, c(meta_cols, data_cols)]
+write.table(
+  txi_tpm, 
+  file = paste0(out_pref,"txi_tpms_gene.csv"),
+  sep = "\t", quote = FALSE, row.names=FALSE
+    )
+
+txi_raw = data.frame(txi$counts)
+colnames(txi_raw) = files
+txi_raw$ensembl_gene_id = full_mapping[rownames(txi_raw),]$ensembl_gene_id;
+txi_raw$hgnc_symbol = full_mapping[rownames(txi_raw),]$hgnc_symbol;
+txi_raw$entrezgene_id = rownames(txi_raw)
+meta_cols = c("entrezgene_id", "ensembl_gene_id", "hgnc_symbol")
+data_cols = setdiff(colnames(txi_raw), meta_cols)
+txi_raw = txi_raw[, c(meta_cols, data_cols)]
+write.table(
+  txi_raw, 
+  file = paste0(out_pref,"txi_raws_gene.csv"),
+  sep = "\t", quote = FALSE, row.names=FALSE
+    )
+
+
 ddsTxi = DESeqDataSetFromTximport(txi, colData = info, design = ~ timepoint + replicate)
 ddsTxi = DESeq(ddsTxi)
-
 
 combs = combn(unique(info$timepoint),2) ## 2x3 table with each pair of combinations
 
@@ -101,7 +130,7 @@ timepoints_hits = apply(combs, 2, function(pair) {
 
 repcombs = combn(unique(info$replicate),2)
 
-apply(combs, 2, function(pair) { 
+apply(repcombs, 2, function(pair) { 
   res = results(ddsTxi, contrast = c("replicate", pair[1], pair[2]));
   res$ensembl_gene_id = full_mapping[rownames(res),]$ensembl_gene_id;
   res$hgnc_symbol = full_mapping[rownames(res),]$hgnc_symbol;
