@@ -327,10 +327,10 @@ rule full_monty_autodetect: # BAM fingerprint, BW PCA, BWs, peaks for all differ
         expand("DATA/PEAKS/{full_exp}_c{cutoff}_peaks.bdgPeak", full_exp=find_full_exp_names("DATA/FASTQ/"), cutoff=["01", "02", "05"])
 
 rule histone_batch:
-    expand("FIGURES/PCA/batch_histone_norm10M_t.png")
+    "FIGURES/PCA/batch_histone_norm10M_t.png"
 
 rule tf_batch:
-    expand("FIGURES/PCA/batch_tf_norm10M_t.png")
+    "FIGURES/PCA/batch_tf_norm10M_t.png"
 
 rule align_all_fastqs_autodetect:
     input:
