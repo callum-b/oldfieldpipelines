@@ -9,7 +9,7 @@ opt="p"
 peakfiles=()
 graphfiles=()
 
-while [ "$1" ]; do
+while [ "$1" ]; do ## input files are given as arguments, like this: "multimapbw.sh peakfile1.peak peakfile2.peak ... peakfilen.peak :: bwfile1.bw bwfile2.bw ... bwfilen.bw "
     case $1 in 
         ::) opt="g";;
         *) if [ "$opt" = "p" ]; then peakfiles+=("$1")
@@ -22,9 +22,18 @@ done
 printf "Peak files to process:\n" 1>&2
 printf " <%s>\n" "${peakfiles[@]}" 1>&2
 printf "\n" 1>&2
-printf "BigWig files to process:\n" 1>&2
+if (( ${#peakfiles[@]} == 0 )); then
+    echo "No peak files found, exiting" ; exit 1;
+fi
+
+printf "Bigwig files to process:\n" 1>&2
 printf " <%s>\n" "${graphfiles[@]}" 1>&2
 printf "\n" 1>&2
+if (( ${#graphfiles[@]} == 0 )); then
+    echo "No Bigwig files found, exiting" ; exit 1;
+fi
+
+
 
 peaksum=$(echo ${peakfiles[@]} | md5sum)
 graphsum=$(echo ${graphfiles[@]} | md5sum)

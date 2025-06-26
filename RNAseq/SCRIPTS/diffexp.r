@@ -77,7 +77,7 @@ ddsTxi = DESeq(ddsTxi)
 
 combs = combn(unique(info$timepoint),2) ## 2x3 table with each pair of combinations
 
-apply(combs, 2, function(pair) { ## from chatGPT
+apply(combs, 2, function(pair) { 
   res = results(ddsTxi, contrast = c("timepoint", pair[1], pair[2]));
   res$ensembl_gene_id = full_mapping[rownames(res),]$ensembl_gene_id;
   res$hgnc_symbol = full_mapping[rownames(res),]$hgnc_symbol;
@@ -100,6 +100,18 @@ timepoints_hits = apply(combs, 2, function(pair) {
 })
 
 repcombs = combn(unique(info$replicate),2)
+
+apply(combs, 2, function(pair) { 
+  res = results(ddsTxi, contrast = c("replicate", pair[1], pair[2]));
+  res$ensembl_gene_id = full_mapping[rownames(res),]$ensembl_gene_id;
+  res$hgnc_symbol = full_mapping[rownames(res),]$hgnc_symbol;
+  res$entrezgene_id = rownames(res)
+  res = res[, c(9,7,8,1,2,3,4,5,6)]
+  write.table(
+    res, 
+    file = paste0(out_pref,"deseq2_out_replicates_", pair[1], "_vs_", pair[2], ".csv"),
+    sep = "\t", quote = FALSE, row.names=FALSE
+      )})
 
 replicates_hits = apply(repcombs, 2, function(pair) { 
   res = results(ddsTxi, contrast = c("replicate", pair[1], pair[2]))

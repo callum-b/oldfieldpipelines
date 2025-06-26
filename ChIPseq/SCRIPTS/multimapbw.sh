@@ -22,9 +22,18 @@ done
 printf "Peak files to process:\n" 1>&2
 printf " <%s>\n" "${peakfiles[@]}" 1>&2
 printf "\n" 1>&2
-printf "BigWig files to process:\n" 1>&2
+if (( ${#peakfiles[@]} == 0 )); then
+    echo "No peak files found, exiting" ; exit 1;
+fi
+
+printf "Bigwig files to process:\n" 1>&2
 printf " <%s>\n" "${graphfiles[@]}" 1>&2
 printf "\n" 1>&2
+if (( ${#graphfiles[@]} == 0 )); then
+    echo "No Bigwig files found, exiting" ; exit 1;
+fi
+
+
 
 peaksum=$(echo ${peakfiles[@]} | md5sum)
 graphsum=$(echo ${graphfiles[@]} | md5sum)
