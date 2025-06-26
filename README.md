@@ -176,6 +176,26 @@ And then you should be ready to run the rules listed in Snakefile.
 
 ### Different rules
 
+There are a few different rules available to run, in particular for the ChIPseq pipeline.
+
+#### ChIPseq
+
+ - andold_autodetect: runs the main steps of the ChIPseq analysis pipeline, as specified by A OLDFIELD
+ - full_monty_autodetect: runs the main steps of the pipeline with a few extra normalisation options
+ - histone_batch: calculates a PCA containing all histone modifications (their names start with H and then a number) in all experiments
+ - tf_batch: calculates a PCA containing all transcription factors (everything that isn't a histone mod) in all experiments
+ - align_all_fastqs_autodetect: stops after aligning all fastq files found in the data folder
+ - call_all_peaks_autodetect: stops after calling all peaks on files found in the fastq data folder
+ - compare_all_bigwigs_autodetect: stops after normalising BigWigs to input
+ - PCA_all_bws_autodetect: calculates a PCA for each experiment directory
+
+ - align_fastq: align fastq files (Requires user input. See final section of this README)
+ - call_narrow_peaks: call narrow peaks (Requires user input. See final section of this README)
+ - call_broad_peaks: call broad peaks (Requires user input. See final section of this README)
+ - call_bdg_peaks: call peaks using bdgpeakcall (Requires user input. See final section of this README)
+
+### Different commands
+
 Start by checking out which tools will be run (and the shell commands used) using a "dry-run":
 
 `snakemake -np andold_autodetect`
