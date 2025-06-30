@@ -149,7 +149,7 @@ def get_fingerprint_bam_bais(wildcards):
 rule andold_autodetect:
     input:
         expand("FIGURES/QC/{exp_dir}/multiqc_fastqc_report.html", exp_dir=find_exp_dir_names()),
-        expand("DATA/BIGWIG/{full_exp}_avg_{strand}.bw", full_exp=set(["_".join(x.split("_")[0:-1]) for x in find_full_exp_names("DATA/FASTQ/")]), strand=["fw","rv"]),
+        expand("DATA/BIGWIG/{full_exp}_{strand}_avg.bw", full_exp=set(["_".join(x.split("_")[0:-1]) for x in find_full_exp_names("DATA/FASTQ/")]), strand=["fw","rv"]),
         expand("DATA/CSV/{exp_dir}/TPM_counts.csv", exp_dir=find_exp_dir_names()),
         expand("DATA/CSV/{exp_dir}/raw_counts.csv", exp_dir=find_exp_dir_names()),
         expand("DATA/CSV/{exp_dir}/deseq2_out_signif_hits.csv", exp_dir=find_exp_dir_names())
@@ -337,7 +337,7 @@ rule deeptools_bigwigAverage_stranded:
     input:
         get_deeptools_bigwigAverage_stranded_bws
     output:
-        "DATA/BIGWIG/{exp_dir}/{exp_conds}_avg_{strand}.bw"
+        "DATA/BIGWIG/{exp_dir}/{exp_conds}_{strand}_avg.bw"
     log:
         "snakemake_logs/deeptools_bigwigAverage_stranded/{exp_dir}_{exp_conds}_merge_{strand}.log"
     params:
