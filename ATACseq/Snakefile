@@ -172,7 +172,7 @@ def effect_size_mmb(inpath, outpath):
 ## Rule-specific input functions
 
 def get_fingerprint_bam_bams(wildcards):
-    # return [bam_name_from_fq_name(f) for f in exps_from_inp("DATA/FASTQ/Input_{wildcards.expconds}.fq.gz")] # this is supposed to work with Snakemake wildcard in string integration but doesn't for some reason :(
+    # return [bam_name_from_fq_name(f) for f in exps_from_inp("DATA/FASTQ/Input_{wildcards.exp_conds}.fq.gz")] # this is supposed to work with Snakemake wildcard in string integration but doesn't for some reason :(
     return sorted(set([f.replace("FASTQ", "BAM").replace(".fq.gz", ".bam").replace("_rv", "_pe").replace(".filtered", "")
         for f in get_ATACseq_batches_in_dir("DATA/FASTQ/"+wildcards.exp_dir) if not re.search("_fw", f) ])) # no wait this is correct, apparently it's either an input function or auto-wildcard parsing. Best practices is to use fstring python code.
 
@@ -182,10 +182,10 @@ def get_fingerprint_bam_bais(wildcards):
 
 def get_select_peaks_2reps_peaks(wildcards):
     toreturn = []
-    reps = sorted(set([re.split(r'_(\d+)', f.split("/")[-1])[1] for f in glob.glob("DATA/FASTQ/"+wildcards.expconds+"_*.fq.gz")]))
+    reps = sorted(set([re.split(r'_(\d+)', f.split("/")[-1])[1] for f in glob.glob("DATA/FASTQ/"+wildcards.exp_conds+"_*.fq.gz")]))
     for i in range(len(reps)-1):
         for j in range(1,len(reps[i:])):
-            toreturn.append("DATA/PEAKS/"+wildcards.exp_dir+"/"+wildcards.expconds+"_"+str(reps[i])+"_inter_"+str(reps[i+j])+"_pe_"+wildcards.cutoff+"_"+wildcards.type+"Peak")
+            toreturn.append("DATA/PEAKS/"+wildcards.exp_dir+"/"+wildcards.exp_conds+"_"+str(reps[i])+"_inter_"+str(reps[i+j])+"_pe_"+wildcards.cutoff+"_"+wildcards.type+"Peak")
     return sorted(set(toreturn))
 
 def get_multiqc_fastqcs(wildcards):
@@ -196,7 +196,7 @@ def get_multiqc_fastqcs(wildcards):
     
 def get_deeptools_bigwigAverage_bws(wildcards):
     return sorted(set([x.replace("_fw", "_rv").replace(".fq.gz", "_"+wildcards.norm+".bw").replace("_rv", "_pe").replace(".filtered", "").replace("_trimmed", "").replace("FASTQ", "BIGWIG") 
-        for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/"+wildcards.expconds+"_*.fq.gz")]))
+        for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/"+wildcards.exp_conds+"_*.fq.gz")]))
     
 def get_deeptools_bwsummary_bws(wildcards):
     return sorted(set([x.replace("_fw", "_rv").replace(".fq.gz", "_"+wildcards.norm+".bw").replace("_rv", "_pe").replace(".filtered", "").replace("_trimmed", "").replace("FASTQ", "BIGWIG") 
@@ -313,11 +313,11 @@ rule fingerprint_bam:
         bams=get_fingerprint_bam_bams,
         bais=get_fingerprint_bam_bais
     output:
-        "FIGURES/QC/{exp_dir}/{expconds}_fingerprint.svg"
+        "FIGURES/QC/{exp_dir}/{exp_conds}_fingerprint.svg"
     log:
-        "snakemake_logs/fingerprint_bam/{exp_dir}/{expconds}.log"
+        "snakemake_logs/fingerprint_bam/{exp_dir}/{exp_conds}.log"
     shell:
-        "plotFingerprint --bamfiles {input.bams} -o {output} --ignoreDuplicates --plotTitle 'Fingerprint of {wildcards.expconds} ChIP-seq data' 2>{log}"
+        "plotFingerprint --bamfiles {input.bams} -o {output} --ignoreDuplicates --plotTitle 'Fingerprint of {wildcards.exp_conds} ATAC-seq data' 2>{log}"
 
 
 
@@ -443,11 +443,11 @@ rule bed_to_BigWig:
 
 rule macs3_callpeak_pe:
     input:
-        trt="DATA/BED/{exp_dir}/{expconds}_{rep}_pe_filterdup_filterchr.bed"
+        trt="DATA/BED/{exp_dir}/{exp_conds}_{rep}_pe_filterdup_filterchr.bed"
     output:
-        "DATA/PEAKS/{exp_dir}/{expconds}_{rep}_pe_q{qval}_peaks.narrowPeak"
+        "DATA/PEAKS/{exp_dir}/{exp_conds}_{rep}_pe_q{qval}_peaks.narrowPeak"
     log:
-        "snakemake_logs/macs3_callpeak/{exp_dir}/{expconds}_{rep}_pe_q{qval}.log"
+        "snakemake_logs/macs3_callpeak/{exp_dir}/{exp_conds}_{rep}_pe_q{qval}.log"
     params:
         g=config.get("macs3_callpeak_g", "hs")
     run:
@@ -463,16 +463,16 @@ rule macs3_callpeak_pe:
             real_qval = float("0."+wildcards.qval)
         else:
             real_qval = float(wildcards.qval)
-        shell("macs3 callpeak -f BEDPE -t {input.trt} -n {wildcards.exp_dir}/{wildcards.expconds}_{wildcards.rep}_pe_q{wildcards.qval} --outdir DATA/PEAKS/ "
+        shell("macs3 callpeak -f BEDPE -t {input.trt} -n {wildcards.exp_dir}/{wildcards.exp_conds}_{wildcards.rep}_pe_q{wildcards.qval} --outdir DATA/PEAKS/ "
         "-g {params.g} -q {real_qval}{max_gap}{min_length} 2>{log}")
 
 rule macs3_callbroadpeak_pe:
     input:
-        trt="DATA/BED/{exp_dir}/{expconds}_{rep}_pe_filterdup_filterchr.bed"
+        trt="DATA/BED/{exp_dir}/{exp_conds}_{rep}_pe_filterdup_filterchr.bed"
     output:
-        "DATA/PEAKS/{exp_dir}/{expconds}_{rep}_pe_q{qval}_peaks.broadPeak"
+        "DATA/PEAKS/{exp_dir}/{exp_conds}_{rep}_pe_q{qval}_peaks.broadPeak"
     log:
-        "snakemake_logs/macs3_callbroadpeak/{exp_dir}/{expconds}_{rep}_pe_q{qval}.log"
+        "snakemake_logs/macs3_callbroadpeak/{exp_dir}/{exp_conds}_{rep}_pe_q{qval}.log"
     params:
         g=config.get("macs3_callbroadpeak_g", "hs")
     run:
@@ -488,17 +488,17 @@ rule macs3_callbroadpeak_pe:
             real_qval = float("0."+wildcards.qval)
         else:
             real_qval = float(wildcards.qval)
-        shell("macs3 callpeak -f BEDPE -t {input.trt} -n {wildcards.exp_dir}/{wildcards.expconds}_{wildcards.rep}_pe_q{wildcards.qval} --outdir DATA/PEAKS/ "
+        shell("macs3 callpeak -f BEDPE -t {input.trt} -n {wildcards.exp_dir}/{wildcards.exp_conds}_{wildcards.rep}_pe_q{wildcards.qval} --outdir DATA/PEAKS/ "
         "-g {params.g} --broad --broad-cutoff {real_qval}{max_gap}{min_length} 2>{log}")
 
 rule bedtools_intersect:
     input:
-        p1="DATA/PEAKS/{exp_dir}/{expconds}_{rep1}_pe_{cutoff}_{type}Peak",
-        p2="DATA/PEAKS/{exp_dir}/{expconds}_{rep2}_pe_{cutoff}_{type}Peak"
+        p1="DATA/PEAKS/{exp_dir}/{exp_conds}_{rep1}_pe_{cutoff}_{type}Peak",
+        p2="DATA/PEAKS/{exp_dir}/{exp_conds}_{rep2}_pe_{cutoff}_{type}Peak"
     output:
-        "DATA/PEAKS/{exp_dir}/{expconds}_{rep1}_inter_{rep2}_pe_{cutoff}_{type}Peak"
+        "DATA/PEAKS/{exp_dir}/{exp_conds}_{rep1}_inter_{rep2}_pe_{cutoff}_{type}Peak"
     log:
-        "snakemake_logs/bedtools_intersect/{exp_dir}/{expconds}_{rep1}_inter_{rep2}_pe_{cutoff}_{type}.log"
+        "snakemake_logs/bedtools_intersect/{exp_dir}/{exp_conds}_{rep1}_inter_{rep2}_pe_{cutoff}_{type}.log"
     shell:
         "bedtools intersect -a {input.p1} -b {input.p2} > {output}"
 
@@ -506,9 +506,9 @@ rule select_peaks_2reps:
     input:
         get_select_peaks_2reps_peaks 
     output:
-        "DATA/PEAKS/{exp_dir}/{expconds}_in2reps_pe_{cutoff}_{type}Peak"
+        "DATA/PEAKS/{exp_dir}/{exp_conds}_in2reps_pe_{cutoff}_{type}Peak"
     log:
-        "snakemake_logs/bedtools_intersect/{exp_dir}/{expconds}_in2reps_pe_{cutoff}_{type}.log"
+        "snakemake_logs/bedtools_intersect/{exp_dir}/{exp_conds}_in2reps_pe_{cutoff}_{type}.log"
     shell:
         "cat {input} | bedtools sort -i /dev/stdin > temp_$(echo -n {input} | md5sum | tr '-' ' ') ; "
         "bedtools merge -d 50 -i temp_$(echo -n {input} | md5sum | tr '-' ' ') > {output}; rm temp_$(echo -n {input} | md5sum | tr '-' ' ')"
@@ -563,9 +563,9 @@ rule deeptools_bigwigAverage:
     input:
         get_deeptools_bigwigAverage_bws
     output:
-        "DATA/BIGWIG/{exp_dir}/{expconds}_0{pe}_{norm}.bw"
+        "DATA/BIGWIG/{exp_dir}/{exp_conds}_0{pe}_{norm}.bw"
     log:
-        "snakemake_logs/deeptools_bigwigAverage/{exp_dir}/{expconds}_merge{pe}_{norm}.log"
+        "snakemake_logs/deeptools_bigwigAverage/{exp_dir}/{exp_conds}_merge{pe}_{norm}.log"
     params:
         bs=config.get("deeptools_bigwigAverage_bs", "5")
     run:

@@ -119,13 +119,21 @@ def get_salmon_quant_files(wildcards):
     
 def get_deeptools_bigwigAverage_stranded_bws(wildcards):
     return sorted(set([x.replace(".fq.gz", ".bw").replace(".filtered", "").replace("FASTQ", "BIGWIG") 
-        for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/"+wildcards.ChIP+"_"+wildcards.expconds+"_*"+wildacards.strand+"*.fq.gz")]))
+        for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/"+wildcards.ChIP+"_"+wildcards.exp_conds+"_*"+wildacards.strand+"*.fq.gz")]))
 
 def get_multiqc_fastqcs(wildcards):
     return sorted(set(
         x.replace(".filtered", "").replace("fq.gz", "filtered_fastqc.html")
         for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/*.fq.gz")
     ))
+
+def get_fingerprint_bam_bams(wildcards):
+    return sorted(set([f.replace("FASTQ", "BAM").replace(".fq.gz", ".bam").replace("_rv", "").replace(".filtered", "")
+        for f in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/*"+wildcards.exp_conds+"*.fq.gz")])) 
+        
+def get_fingerprint_bam_bais(wildcards):
+    return sorted(set([f.replace("FASTQ", "BAM").replace(".fq.gz", ".bam").replace("_rv", "_pe").replace(".filtered", "") + ".bai" 
+        for f in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/*"+wildcards.exp_conds+"*.fq.gz")]))
 
 
 
@@ -204,11 +212,11 @@ rule fingerprint_bam:
         bams=get_fingerprint_bam_bams,
         bais=get_fingerprint_bam_bais
     output:
-        "FIGURES/QC/{expconds}_fingerprint.svg"
+        "FIGURES/QC/{exp_dir}/{exp_conds}_fingerprint.svg"
     log:
-        "snakemake_logs/fingerprint_bam/{expconds}.log"
+        "snakemake_logs/fingerprint_bam/{exp_dir}_{exp_conds}.log"
     shell:
-        "plotFingerprint --bamfiles {input.bams} -o {output} --ignoreDuplicates --plotTitle 'Fingerprint of {wildcards.expconds} ChIP-seq data' 2>{log}"
+        "plotFingerprint --bamfiles {input.bams} -o {output} --ignoreDuplicates --plotTitle 'Fingerprint of {wildcards.exp_conds} RNA-seq data' 2>{log}"
 
 
 ## FastQ prep and alignment
@@ -329,9 +337,9 @@ rule deeptools_bigwigAverage_stranded:
     input:
         get_deeptools_bigwigAverage_stranded_bws
     output:
-        "DATA/BIGWIG/{exp_dir}/{expconds}_0_{strand}.bw"
+        "DATA/BIGWIG/{exp_dir}/{exp_conds}_0_{strand}.bw"
     log:
-        "snakemake_logs/deeptools_bigwigAverage_stranded/{exp_dir}_{expconds}_merge_{strand}.log"
+        "snakemake_logs/deeptools_bigwigAverage_stranded/{exp_dir}_{exp_conds}_merge_{strand}.log"
     params:
         bs=config.get("deeptools_bigwigAverage_stranded_bs", "1")
     run:
