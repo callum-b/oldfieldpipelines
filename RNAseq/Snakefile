@@ -119,7 +119,7 @@ def get_salmon_quant_files(wildcards):
     
 def get_deeptools_bigwigAverage_stranded_bws(wildcards):
     return sorted(set([x.replace(".fq.gz", ".bw").replace(".filtered", "").replace("FASTQ", "BIGWIG") 
-        for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/"+wildcards.ChIP+"_"+wildcards.exp_conds+"_*"+wildacards.strand+"*.fq.gz")]))
+        for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/"+wildcards.exp_conds+"_*"+wildacards.strand+"*.fq.gz")]))
 
 def get_multiqc_fastqcs(wildcards):
     return sorted(set(
