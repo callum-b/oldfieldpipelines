@@ -15,6 +15,7 @@ module load bioinfo/FastQC/0.12.1
 module load bioinfo/bowtie/2.5.1 
 module load bioinfo/samtools/1.20 
 module load statistics/R/4.5.0
+module load compilers/gcc/12.2.0
 
 
 # snakemake -np call_all_peaks_autodetect ## run no jobs, print list of jobs and their params that would be run for job call_all_peaks_autodetect
