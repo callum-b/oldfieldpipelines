@@ -269,12 +269,12 @@ rule andold_autodetect:
         expand("FIGURES/PCA/{exp_dir}/{norm}_t.png", exp_dir=find_exp_dir_names(), norm=["RPGC", "norm10M"]),
         expand("FIGURES/HM/{exp_dir}/{norm}_pearson.png", exp_dir=find_exp_dir_names(), norm=["RPGC", "norm10M"]),
         
-        expand("DATA/PEAKS/{full_exp}_q{qval}_peaks.{peaktype}Peak", full_exp_dir=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"], peaktype=["narrow", "broad"]),
+        expand("DATA/PEAKS/{full_exp}_q{qval}_peaks.{peaktype}Peak", full_exp=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"], peaktype=["narrow", "broad"]),
         expand("DATA/BED/{exp_dir}/q{qval}_{peaktype}peaks_2reps_vs_{norm}_merged_bigwigs_scores_mmb.csv", exp_dir=find_exp_dir_names(), norm=["RPGC", "norm10M"], qval=["01","02","05"], peaktype=["narrow", "broad"])
 
 rule PCA_all_bws:
     input:
-        expand("FIGURES/PCA/{exp_dir}/{norm}_t.png", norm=["RPGC", "norm10M"])
+        expand("FIGURES/PCA/{exp_dir}/{norm}_t.png", exp_dir=find_exp_dir_names(), norm=["RPGC", "norm10M"])
 
 
 ## USER SPECIFIED RULES
@@ -668,7 +668,7 @@ rule heatmap_correlation:
     output:
         "FIGURES/HM/{exp_dir}/{batch}_pearson.png"
     log:
-        "snakemake_logs/heatmap_correlation/{batch}.log"
+        "snakemake_logs/heatmap_correlation/{exp_dir}_{batch}.log"
     run:
         correlation_hm(input[0], output[0])
 
