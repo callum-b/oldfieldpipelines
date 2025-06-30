@@ -74,6 +74,11 @@ def get_ATACseq_batches_in_dir(path): ## path should probably be "DATA/FASTQ"
 def find_exp_dir_names():
     return sorted(set([x.split("/")[-2] for x in glob.glob("DATA/FASTQ/*/*.fq.gz")]))
 
+def find_full_exp_names(path):
+    flist= sorted(set([x.replace("_rv", "_pe").replace(".fq.gz", "").replace(".filtered", "").replace(path,"") for x in glob.glob(path+"*/*.fq.gz") if (not re.search("/Input_", x)) and (not re.search("_fw.f", x))]))
+    # print(flist) ## the DAG drawing tool doesn't like prints in the pipeline so commented out, uncomment if you want more verbose logging 
+    return flist
+
 def correlation_hm(in_path, out_path):
     data = np.load(in_path)
     mtx = data["matrix"]
@@ -264,7 +269,7 @@ rule andold_autodetect:
         expand("FIGURES/PCA/{exp_dir}/{norm}_t.png", exp_dir=find_exp_dir_names(), norm=["RPGC", "norm10M"]),
         expand("FIGURES/HM/{exp_dir}/{norm}_pearson.png", exp_dir=find_exp_dir_names(), norm=["RPGC", "norm10M"]),
         
-        expand("DATA/PEAKS/{exp_dir}/q{qval}_peaks.{peaktype}Peak", exp_dir=find_exp_dir_names(), qval=["01", "02", "05"], peaktype=["narrow", "broad"]),
+        expand("DATA/PEAKS/{full_exp}_q{qval}_peaks.{peaktype}Peak", full_exp_dir=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"], peaktype=["narrow", "broad"]),
         expand("DATA/BED/{exp_dir}/q{qval}_{peaktype}peaks_2reps_vs_{norm}_merged_bigwigs_scores_mmb.csv", exp_dir=find_exp_dir_names(), norm=["RPGC", "norm10M"], qval=["01","02","05"], peaktype=["narrow", "broad"])
 
 rule PCA_all_bws:
@@ -301,7 +306,7 @@ rule multiQC:
     log:
         "snakemake_logs/fastQC/{exp_dir}/multiqc_fastqc.log"
     shell:
-        "multiQC -n {output} DATA/FASTQ/{wildcards.exp_dir}/"
+        "multiqc -n {output} DATA/FASTQ/{wildcards.exp_dir}/"
 
 rule fingerprint_bam:
     input:

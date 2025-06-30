@@ -57,6 +57,15 @@ wildcard_constraints:
 ### FUNCTIONS ###
 
 ## General functions
+
+def find_full_exp_names(path):
+    flist= sorted(set([x.replace("_rv", "").replace(".fq.gz", "").replace(".filtered", "").replace(path,"") for x in glob.glob(path+"*/*.fq.gz") if not re.search("_fw.f", x)]))
+    # print(flist) ## the DAG drawing tool doesn't like prints in the pipeline so commented out, uncomment if you want more verbose logging 
+    return flist
+
+def find_exp_dir_names():
+    return sorted(set([x.split("/")[-2] for x in glob.glob("DATA/FASTQ/*/*.fq.gz")]))
+    
 def build_genecounts_csv(data_in, data_out, gene_info):
     info = {}
     with open(gene_info, "r") as g:
@@ -100,17 +109,24 @@ def build_salmon_tpm_names(data_in, data_out, transcript_names):
 
 def get_named_salmon_quant_files(wildcards):
     return sorted(set(
-        [x.replace("FASTQ", "CSV").replace(".filtered", "").replace("_fw", "").replace("_rv", "").replace(".fq.gz", "_named_quant.csv") for x in glob.glob("DATA/FASTQ/"+wildcards.expdir+"/*fq.gz")]
+        [x.replace("FASTQ", "CSV").replace(".filtered", "").replace("_fw", "").replace("_rv", "").replace(".fq.gz", "_named_quant.csv") for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/*fq.gz")]
     ))
 
 def get_salmon_quant_files(wildcards):
     return sorted(set(
-        [x.replace("FASTQ", "CSV").replace(".filtered", "").replace("_fw", "").replace("_rv", "").replace(".fq.gz", "/quant.sf") for x in glob.glob("DATA/FASTQ/"+wildcards.expdir+"/*fq.gz")]
+        [x.replace("FASTQ", "CSV").replace(".filtered", "").replace("_fw", "").replace("_rv", "").replace(".fq.gz", "/quant.sf") for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/*fq.gz")]
     ))
     
 def get_deeptools_bigwigAverage_stranded_bws(wildcards):
     return sorted(set([x.replace(".fq.gz", ".bw").replace(".filtered", "").replace("FASTQ", "BIGWIG") 
-        for x in glob.glob("DATA/FASTQ/"+wildcards.expdir+"/"+wildcards.ChIP+"_"+wildcards.expconds+"_*"+wildacards.strand+"*.fq.gz")]))
+        for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/"+wildcards.ChIP+"_"+wildcards.expconds+"_*"+wildacards.strand+"*.fq.gz")]))
+
+def get_multiqc_fastqcs(wildcards):
+    return sorted(set(
+        x.replace(".filtered", "").replace("fq.gz", "filtered_fastqc.html")
+        for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/*.fq.gz")
+    ))
+
 
 
 ### BIG PICTURE RULES ###
@@ -121,6 +137,14 @@ def get_deeptools_bigwigAverage_stranded_bws(wildcards):
 
 ## USER SPECIFIED RULES
 ## These use the config file to find which data files to run on
+
+rule andold_autodetect:
+    input:
+        expand("FIGURES/QC/{exp_dir}/multiqc_fastqc_report.html", exp_dir=find_exp_dir_names()),
+        expand("DATA/BIGWIG/{full_exp}_0_{strand}.bw", full_exp=set(["_".join(x.split("_")[0:-1]) for x in find_full_exp_names("DATA/FASTQ/")]), strand=["fw","rv"]),
+        expand("DATA/CSV/{exp_dir}/TPM_counts.csv", exp_dir=find_exp_dir_names()),
+        expand("DATA/CSV/{exp_dir}/raw_counts.csv", exp_dir=find_exp_dir_names()),
+        expand("DATA/CSV/{exp_dir}/deseq2_out_signif_hits.csv", exp_dir=find_exp_dir_names())
 
 rule PolyA:
     input:
@@ -169,11 +193,11 @@ rule multiQC:
     input:
         get_multiqc_fastqcs
     output:
-        "FIGURES/QC/multiqc_fastqc_report.html"
+        "FIGURES/QC/{exp_dir}/multiqc_fastqc_report.html"
     log:
-        "snakemake_logs/fastQC/multiqc_fastqc.log"
+        "snakemake_logs/fastQC/{exp_dir}_multiqc_fastqc.log"
     shell:
-        "multiQC -n {output} DATA/FASTQ/"
+        "multiqc -n {output} DATA/FASTQ/"
 
 rule fingerprint_bam:
     input:
@@ -305,9 +329,9 @@ rule deeptools_bigwigAverage_stranded:
     input:
         get_deeptools_bigwigAverage_stranded_bws
     output:
-        "DATA/BIGWIG/{expdir}/{expconds}_0_{strand}.bw"
+        "DATA/BIGWIG/{exp_dir}/{expconds}_0_{strand}.bw"
     log:
-        "snakemake_logs/deeptools_bigwigAverage_stranded/{expdir}_{expconds}_merge_{strand}.log"
+        "snakemake_logs/deeptools_bigwigAverage_stranded/{exp_dir}_{expconds}_merge_{strand}.log"
     params:
         bs=config.get("deeptools_bigwigAverage_stranded_bs", "1")
     run:
@@ -368,9 +392,9 @@ rule build_tpm_count_matrix:
     input:
         get_named_salmon_quant_files
     output:
-        "DATA/CSV/{expdir}/TPM_counts.csv"
+        "DATA/CSV/{exp_dir}/TPM_counts.csv"
     log:
-        "snakemake_logs/build_tpm_count_matrix/{expdir}_tpms.log"
+        "snakemake_logs/build_tpm_count_matrix/{exp_dir}_tpms.log"
     run:
         shell("echo 'transcript_ID\t" +
             "\t".join([x.split("/")[-1].replace("_named_quant.csv", "") for x in input]) + 
@@ -385,9 +409,9 @@ rule build_raw_count_matrix:
     input:
         get_named_salmon_quant_files
     output:
-        "DATA/CSV/{expdir}/raw_counts.csv"
+        "DATA/CSV/{exp_dir}/raw_counts.csv"
     log:
-        "snakemake_logs/build_raw_count_matrix/{expdir}_raws.log"
+        "snakemake_logs/build_raw_count_matrix/{exp_dir}_raws.log"
     run:
         shell("echo 'transcript_ID\t" +
             "\t".join([x.split("/")[-1].replace("_named_quant.csv", "") for x in input]) + 
@@ -402,10 +426,10 @@ rule diffexp:
     input:
         get_salmon_quant_files
     output:
-        "DATA/CSV/{expdir}/raws_gene.csv",
-        "DATA/CSV/{expdir}/tpms_gene.csv",
-        "DATA/CSV/{expdir}/deseq2_out_signif_hits.csv"
+        "DATA/CSV/{exp_dir}/raws_gene.csv",
+        "DATA/CSV/{exp_dir}/tpms_gene.csv",
+        "DATA/CSV/{exp_dir}/deseq2_out_signif_hits.csv"
     log:
-        "snakemake_logs/diffexp/{expdir}.log"
+        "snakemake_logs/diffexp/{exp_dir}.log"
     shell:
-        "Rscript SCRIPTS/diffexp.r --no-environ {wildcards.expdir}/ {input}" 
+        "Rscript SCRIPTS/diffexp.r --no-environ {wildcards.exp_dir}/ {input}" 

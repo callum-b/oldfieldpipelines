@@ -58,11 +58,15 @@ if os.uname()[4] == 'arm64':
     # print("ARM64 architecture detected")
 else:
     macos_suffix = ""
+if "excluded_regions" in config:
+    nobl_tag = "_nobl"
+else:
+    nobl_tag = ""
 
 
 wildcard_constraints:
     sample_sp = r".+(?<!_pe)", # use this wildcard when using software that requires specific input/options for single end or paired end reads
-    expconds = r".+(?<!_inter)",
+    exp_conds = r".+(?<!_inter)",
     rep = r"[0-9]+",
     rep1 = r"[0-9]+",
     rep2 = r"[0-9]+",
@@ -70,7 +74,10 @@ wildcard_constraints:
     big_batch = r"[^/]+",
     norm = r"[^_]+",
     pe = r"(_pe){0,1}",
-    qval = r".*",
+    qval = r"[^_]*",
+    real_qval = r"[^_]*",
+    cutoff = r"[^_]+",
+    thrs = r"[0-9]+",
     additional_info = r".*"
 
 
@@ -90,10 +97,10 @@ def inp_exps_from_glob(path):
     exps=[]
     for inp in inps:
         segs=inp.split("/")
-        expdir="_".join(segs[2:-1])
-        expconds="_".join(segs[-1].split(".")[0].split("_")[1:])
-        if not re.search("_fw", expconds):
-            exps.append((expdir+"/"+expconds.replace("_rv", "")))
+        exp_dir="_".join(segs[2:-1])
+        exp_conds="_".join(segs[-1].split(".")[0].split("_")[1:])
+        if not re.search("_fw", exp_conds):
+            exps.append((exp_dir+"/"+exp_conds.replace("_rv", "")))
     # print(exps)
     return exps
 
@@ -195,27 +202,27 @@ def effect_size_mmb(inpath, outpath):
 
 def get_fingerprint_bam_bams(wildcards):
     return sorted(set([f.replace("FASTQ", "BAM").replace(".fq.gz", ".bam").replace("_rv", "_pe").replace(".filtered", "")
-        for f in exps_from_inp("DATA/FASTQ/"+wildcards.expdir+"/Input_"+wildcards.expconds+".fq.gz") if not re.search("_fw", f) ])) # no wait this is correct, apparently it's either an input function or auto-wildcard parsing. Best practices is to use fstring python code.
+        for f in exps_from_inp("DATA/FASTQ/"+wildcards.exp_dir+"/Input_"+wildcards.exp_conds+".fq.gz") if not re.search("_fw", f) ])) # no wait this is correct, apparently it's either an input function or auto-wildcard parsing. Best practices is to use fstring python code.
 
 def get_fingerprint_bam_bais(wildcards):
     return sorted(set([f.replace("FASTQ", "BAM").replace(".fq.gz", ".bam").replace("_rv", "_pe").replace(".filtered", "") + ".bai" 
-        for f in exps_from_inp("DATA/FASTQ/"+wildcards.expdir+"/Input_"+wildcards.expconds+".fq.gz") if not re.search("_fw", f) ]))
+        for f in exps_from_inp("DATA/FASTQ/"+wildcards.exp_dir+"/Input_"+wildcards.exp_conds+".fq.gz") if not re.search("_fw", f) ]))
 
 def get_mspc_consensus_beds(wildcards):
     return sorted(set([f.replace("FASTQ", "PEAKS").replace(".fq.gz", "_q"+wildcards.cutoff+"_peaks."+wildcards.type+"Peak").replace("_rv", "_pe").replace(".filtered", "")
-        for f in glob.glob("DATA/FASTQ/"+wildcards.expdir+"/"+wildcards.ChIP+"_"+wildcards.expconds+"_*")  if not re.search("_fw", f) ]))
+        for f in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/"+wildcards.ChIP+"_"+wildcards.exp_conds+"_*")  if not re.search("_fw", f) ]))
     
 def get_deeptools_bigwigAverage_bws(wildcards):
     return sorted(set([x.replace(".fq.gz", "_"+wildcards.norm+".bw").replace("_rv", "_pe").replace(".filtered", "").replace("FASTQ", "BIGWIG") 
-        for x in glob.glob("DATA/FASTQ/"+wildcards.expdir+"/"+wildcards.ChIP+"_"+wildcards.expconds+"_*.fq.gz") if not re.search("_fw.f", x)]))
+        for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/"+wildcards.ChIP+"_"+wildcards.exp_conds+"_*.fq.gz") if not re.search("_fw.f", x)]))
     
 def get_deeptools_bwsummary_bws(wildcards):
     return sorted(set([x.replace(".fq.gz", "_"+wildcards.norm+".bw").replace("_rv", "_pe").replace(".filtered", "").replace("FASTQ", "BIGWIG") 
-        for x in glob.glob("DATA/FASTQ/"+wildcards.expdir+"/*.fq.gz") if not re.search("_fw.f", x)]))
+        for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/*.fq.gz") if not re.search("_fw.f", x)]))
 
 def get_deeptools_bwsummary_chip_bws(wildcards):
     return sorted(set([x.replace(".fq.gz", "_"+wildcards.norm+".bw").replace("_rv", "_pe").replace(".filtered", "").replace("FASTQ", "BIGWIG") 
-        for x in glob.glob("DATA/FASTQ/"+wildcards.expdir+"/"+wildcards.ChIP+"*.fq.gz") if not re.search("_fw.f", x)]))
+        for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/"+wildcards.ChIP+"*.fq.gz") if not re.search("_fw.f", x)]))
 
 def get_deeptools_bwsummary_batch_bws(wildcards):
     if wildcards.big_batch == "histone":
@@ -230,8 +237,8 @@ def get_deeptools_bwsummary_batch_bws(wildcards):
 
 def get_multimapbw_peaks(wildcards):
     files = sorted(set( 
-        x.replace("_fw", "_rv").replace(".filtered", "").replace("_rv", "_pe").replace(".fq.gz", "_q"+wildcards.thrs+"_peaks."+wildcards.peaktype+"Peak") 
-        for x in glob.glob("DATA/FASTQ/"+wildcards.expdir+"/"+wildcards.ChIP+"_*.fq.gz")
+        x.replace("_fw", "_rv").replace(".filtered", "").replace("_rv", "_pe").replace(".fq.gz", "_q"+wildcards.thrs+nobl_tag+"_peaks."+wildcards.peaktype+"Peak") 
+        for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/"+wildcards.ChIP+"_*.fq.gz")
     ))
     toreturn=[]
     first_f = files.pop(0).split("/")[-1]
@@ -250,7 +257,7 @@ def get_multimapbw_peaks(wildcards):
                 next_f = "time to exit!"
                 next_split = ["wheeeeeeee"]
         repids = sorted(set(repids))
-        mystr = "DATA/PEAKS/"+wildcards.expdir+"/"+ first_split[0] + "_" + repids[0]
+        mystr = "DATA/PEAKS/"+wildcards.exp_dir+"/"+ first_split[0] + "_" + repids[0]
         for x in repids[1:]:
             mystr = mystr + "_inter_" + x
         mystr = mystr + first_split[-1]
@@ -262,19 +269,19 @@ def get_multimapbw_peaks(wildcards):
 def get_multimapbw_merged_bigwigs(wildcards):
     return sorted(set(
         re.sub(r'_\d+', '_0', x.replace("_fw", "_rv").replace(".filtered", "").replace("_rv", "_pe").replace("FASTQ", "BIGWIG").replace(".fq.gz", "_"+wildcards.bwnorm+".bw"))
-        for x in glob.glob("DATA/FASTQ/"+wildcards.expdir+"/"+wildcards.ChIP+"_*.fq.gz")
+        for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/"+wildcards.ChIP+"_*.fq.gz")
     ))
 
 def get_multimapbw_indiv_bigwigs(wildcards):
     return sorted(set(
         x.replace("_fw", "_rv").replace(".filtered", "").replace("_rv", "_pe").replace("FASTQ", "BIGWIG").replace(".fq.gz", "_"+wildcards.bwnorm+".bw")
-        for x in glob.glob("DATA/FASTQ/"+wildcards.expdir+"/"+wildcards.ChIP+"_*.fq.gz")
+        for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/"+wildcards.ChIP+"_*.fq.gz")
     ))
 
 def get_multiqc_fastqcs(wildcards):
     return sorted(set(
         x.replace(".filtered", "").replace("fq.gz", "filtered_fastqc.html")
-        for x in glob.glob("DATA/FASTQ/"+wildcards.expdir+"/*.fq.gz")
+        for x in glob.glob("DATA/FASTQ/"+wildcards.exp_dir+"/*.fq.gz")
     ))
 
 ### BIG PICTURE RULES ###
@@ -286,12 +293,12 @@ def get_multiqc_fastqcs(wildcards):
 rule andold_autodetect:
     input:
         expand("FIGURES/QC/{exp}_fingerprint.svg", exp=inp_exps_from_glob("DATA/FASTQ/")),
-        expand("FIGURES/QC/multiqc_fastqc_{expdir}_report.html", expdir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
+        expand("FIGURES/QC/multiqc_fastqc_{exp_dir}_report.html", exp_dir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
         expand("FIGURES/PCA/{full_exp}_norm10M_t.png", full_exp=set([x.split("/")[0] + "/" + x.split("/")[-1].split("_")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
-        expand("FIGURES/PCA/{expdir}/norm10M_t.png", expdir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
-        expand("FIGURES/HM/{expdir}/norm10M_pearson.png", expdir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
+        expand("FIGURES/PCA/{exp_dir}/norm10M_t.png", exp_dir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
+        expand("FIGURES/HM/{exp_dir}/norm10M_pearson.png", exp_dir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
         
-        expand("DATA/PEAKS/{full_exp}_q{qval}_peaks.{peaktype}Peak", full_exp=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"], peaktype=["narrow", "broad"]),
+        expand("DATA/PEAKS/{full_exp}_q{qval}"+nobl_tag+"_peaks.{peaktype}Peak", full_exp=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"], peaktype=["narrow", "broad"]),
         expand("DATA/BED/{full_exp}_q{qval}_{peaktype}peaks_vs_norm10M_inorm_merged_bigwigs_scores_mmb.csv", 
             full_exp=set( "_".join(x.replace("_pe", "").split("_")[:-2]) for x in find_full_exp_names("DATA/FASTQ/")), qval=["01","02","05"], peaktype=["narrow", "broad"])
 
@@ -303,9 +310,9 @@ rule full_monty_autodetect: # BAM fingerprint, BW PCA, BWs, peaks for all differ
         expand("FIGURES/PCA/{full_exp}_RPKM_t.png", full_exp=set([x.split("/")[0] + "/" + x.split("/")[-1].split("_")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
         expand("FIGURES/PCA/{full_exp}_norm10M_t.png", full_exp=set([x.split("/")[0] + "/" + x.split("/")[-1].split("_")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
 
-        expand("FIGURES/PCA/{expdir}/RPGC_t.png", expdir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
-        expand("FIGURES/PCA/{expdir}/RPKM_t.png", expdir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
-        expand("FIGURES/PCA/{expdir}/norm10M_t.png", expdir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
+        expand("FIGURES/PCA/{exp_dir}/RPGC_t.png", exp_dir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
+        expand("FIGURES/PCA/{exp_dir}/RPKM_t.png", exp_dir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
+        expand("FIGURES/PCA/{exp_dir}/norm10M_t.png", exp_dir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
 
         expand("FIGURES/PCA/batch_{batch}_RPGC_t.png", batch=["histone", "tf"]),
         expand("FIGURES/PCA/batch_{batch}_RPKM_t.png", batch=["histone", "tf"]),
@@ -323,9 +330,9 @@ rule full_monty_autodetect: # BAM fingerprint, BW PCA, BWs, peaks for all differ
         expand("DATA/BIGWIG/{full_exp}_RPKM_inorm.bw", full_exp=set(["_".join(x.split("_")[0:-2])+"_0_pe" for x in find_full_exp_names("DATA/FASTQ/") if re.search("_rv", x) ])),
         expand("DATA/BIGWIG/{full_exp}_norm10M_inorm.bw", full_exp=set(["_".join(x.split("_")[0:-2])+"_0_pe" for x in find_full_exp_names("DATA/FASTQ/") if re.search("_rv", x) ])),
         
-        expand("DATA/PEAKS/{full_exp}_q{qval}_peaks.narrowPeak", full_exp=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"]),
-        expand("DATA/PEAKS/{full_exp}_q{qval}_peaks.broadPeak", full_exp=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"]),
-        expand("DATA/PEAKS/{full_exp}_c{cutoff}_peaks.bdgPeak", full_exp=find_full_exp_names("DATA/FASTQ/"), cutoff=["01", "02", "05"])
+        expand("DATA/PEAKS/{full_exp}_q{qval}"+nobl_tag+"_peaks.narrowPeak", full_exp=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"]),
+        expand("DATA/PEAKS/{full_exp}_q{qval}"+nobl_tag+"_peaks.broadPeak", full_exp=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"]),
+        expand("DATA/PEAKS/{full_exp}_c{cutoff}"+nobl_tag+"_peaks.bdgPeak", full_exp=find_full_exp_names("DATA/FASTQ/"), cutoff=["01", "02", "05"])
 
 rule histone_batch:
     "FIGURES/PCA/batch_histone_norm10M_t.png"
@@ -339,9 +346,9 @@ rule align_all_fastqs_autodetect:
 
 rule call_all_peaks_autodetect:
     input:
-        expand("DATA/PEAKS/{full_exp}_q{qval}_peaks.narrowPeak", full_exp=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"]),
-        expand("DATA/PEAKS/{full_exp}_q{qval}_peaks.broadPeak", full_exp=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"]),
-        expand("DATA/PEAKS/{full_exp}_c{cutoff}_peaks.bdgPeak", full_exp=find_full_exp_names("DATA/FASTQ/"), cutoff=["01", "02", "05"])
+        expand("DATA/PEAKS/{full_exp}_q{qval}"+nobl_tag+"_peaks.narrowPeak", full_exp=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"]),
+        expand("DATA/PEAKS/{full_exp}_q{qval}"+nobl_tag+"_peaks.broadPeak", full_exp=find_full_exp_names("DATA/FASTQ/"), qval=["01", "02", "05"]),
+        expand("DATA/PEAKS/{full_exp}_c{cutoff}"+nobl_tag+"_peaks.bdgPeak", full_exp=find_full_exp_names("DATA/FASTQ/"), cutoff=["01", "02", "05"])
 
 rule compare_all_bigwigs_autodetect:
     input:
@@ -363,9 +370,9 @@ rule PCA_all_bws_autodetect:
         expand("FIGURES/PCA/{full_exp}_RPKM_t.png", full_exp=set([x.split("/")[0] + "/" + x.split("/")[-1].split("_")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
         expand("FIGURES/PCA/{full_exp}_norm10M_t.png", full_exp=set([x.split("/")[0] + "/" + x.split("/")[-1].split("_")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
 
-        expand("FIGURES/PCA/{expdir}/RPGC_t.png", expdir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
-        expand("FIGURES/PCA/{expdir}/RPKM_t.png", expdir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
-        expand("FIGURES/PCA/{expdir}/norm10M_t.png", expdir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
+        expand("FIGURES/PCA/{exp_dir}/RPGC_t.png", exp_dir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
+        expand("FIGURES/PCA/{exp_dir}/RPKM_t.png", exp_dir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
+        expand("FIGURES/PCA/{exp_dir}/norm10M_t.png", exp_dir=set([x.split("/")[0] for x in find_full_exp_names("DATA/FASTQ/")])),
 
         expand("FIGURES/PCA/batch_{batch}_RPGC_t.png", batch=["histone", "tf"]),
         expand("FIGURES/PCA/batch_{batch}_RPKM_t.png", batch=["histone", "tf"]),
@@ -380,15 +387,15 @@ rule align_fastq:
 
 rule call_narrow_peaks:
     input:
-        expand("DATA/PEAKS/{sample}_q{qval}_peaks.narrowPeak", sample=config["samples"]["peaks"], qval=str(config.get("macs3_callpeak_q", "0.01")).split(".")[-1]) ## need to handle qval param here because it's used in the output file name
+        expand("DATA/PEAKS/{sample}_q{qval}"+nobl_tag+"_peaks.narrowPeak", sample=config["samples"]["peaks"], qval=str(config.get("macs3_callpeak_q", "0.01")).split(".")[-1]) ## need to handle qval param here because it's used in the output file name
 
 rule call_broad_peaks:
     input:
-        expand("DATA/PEAKS/{sample}_q{qval}_peaks.broadPeak", sample=config["samples"]["peaks"], qval=str(config.get("macs3_callbroadpeak_q", "0.01")).split(".")[-1])
+        expand("DATA/PEAKS/{sample}_q{qval}"+nobl_tag+"_peaks.broadPeak", sample=config["samples"]["peaks"], qval=str(config.get("macs3_callbroadpeak_q", "0.01")).split(".")[-1])
 
 rule call_bdg_peaks:
     input:
-        expand("DATA/PEAKS/{sample}_q{cutoff}_peaks.bdgPeak", sample=config["samples"]["peaks"], cutoff=str(config.get("macs3_bdgpeakcall_c", "0.01")).split(".")[-1])
+        expand("DATA/PEAKS/{sample}_q{cutoff}"+nobl_tag+"_peaks.bdgPeak", sample=config["samples"]["peaks"], cutoff=str(config.get("macs3_bdgpeakcall_c", "0.01")).split(".")[-1])
 
 
 
@@ -412,22 +419,22 @@ rule multiQC:
     input:
         get_multiqc_fastqcs
     output:
-        "FIGURES/QC/multiqc_fastqc_{expdir}_report.html"
+        "FIGURES/QC/multiqc_fastqc_{exp_dir}_report.html"
     log:
-        "snakemake_logs/fastQC/multiqc_fastqc_{expdir}.log"
+        "snakemake_logs/fastQC/multiqc_fastqc_{exp_dir}.log"
     shell:
-        "multiQC -fp -n {output} DATA/FASTQ/{wildcards.expdir}/"
+        "multiqc -fp -n {output} DATA/FASTQ/{wildcards.exp_dir}/"
 
 rule fingerprint_bam:
     input:
         bams=get_fingerprint_bam_bams,
         bais=get_fingerprint_bam_bais
     output:
-        "FIGURES/QC/{expdir}/{expconds}_fingerprint.svg"
+        "FIGURES/QC/{exp_dir}/{exp_conds}_fingerprint.svg"
     log:
-        "snakemake_logs/fingerprint_bam/{expdir}_{expconds}.log"
+        "snakemake_logs/fingerprint_bam/{exp_dir}_{exp_conds}.log"
     shell:
-        "plotFingerprint --bamfiles {input.bams} -o {output} --ignoreDuplicates --plotTitle 'Fingerprint of {wildcards.expconds} ChIP-seq data' 2>{log}"
+        "plotFingerprint --bamfiles {input.bams} -o {output} --ignoreDuplicates --plotTitle 'Fingerprint of {wildcards.exp_conds} ChIP-seq data' 2>{log}"
 
 
 
@@ -617,7 +624,7 @@ rule deeptools_bamCoverage_RPGC_se:
         bs=config.get("deeptools_bamCoverage_RPGC_se_bs", "5"),
         smoothLength=config.get("deeptools_bamCoverage_RPGC_se_smoothLength", "0")
     run:
-        if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
+        if nobl_tag: # conditional run section + using new wildcard from T Booth
             bl_file = "-bl " + config["excluded_regions"]
             excluded_size = int(config["excluded_regions"].split(".")[0].split("_")[-1])
             effective_genome_size = params.genome_size - excluded_size
@@ -641,7 +648,7 @@ rule deeptools_bamCoverage_RPGC_pe:
         bs=config.get("deeptools_bamCoverage_RPGC_pe_bs", "5"),
         smoothLength=config.get("deeptools_bamCoverage_RPGC_pe_smoothLength", "0")
     run:
-        if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
+        if nobl_tag: # conditional run section + using new wildcard from T Booth
             bl_file = "-bl " + config["excluded_regions"]
             excluded_size = int(config["excluded_regions"].split(".")[0].split("_")[-1])
             effective_genome_size = params.genome_size - excluded_size
@@ -665,7 +672,7 @@ rule deeptools_bamCoverage_RPKM_se:
         bs=config.get("deeptools_bamCoverage_RPKM_se_bs", "5"),
         smoothLength=config.get("deeptools_bamCoverage_RPKM_se_smoothLength", "0")
     run:
-        if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
+        if nobl_tag: # conditional run section + using new wildcard from T Booth
             bl_file = "-bl " + config["excluded_regions"]
             excluded_size = int(config["excluded_regions"].split(".")[0].split("_")[-1])
             effective_genome_size = params.genome_size - excluded_size
@@ -689,7 +696,7 @@ rule deeptools_bamCoverage_RPKM_pe:
         bs=config.get("deeptools_bamCoverage_RPKM_pe_bs", "5"),
         smoothLength=config.get("deeptools_bamCoverage_RPKM_pe_smoothLength", "0")
     run:
-        if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
+        if nobl_tag: # conditional run section + using new wildcard from T Booth
             bl_file = "-bl " + config["excluded_regions"]
             excluded_size = int(config["excluded_regions"].split(".")[0].split("_")[-1])
             effective_genome_size = params.genome_size - excluded_size
@@ -703,13 +710,13 @@ rule deeptools_bigwigAverage:
     input:
         get_deeptools_bigwigAverage_bws
     output:
-        "DATA/BIGWIG/{expdir}/{ChIP}_{expconds}_0{pe}_{norm}.bw"
+        "DATA/BIGWIG/{exp_dir}/{ChIP}_{exp_conds}_0{pe}_{norm}.bw"
     log:
-        "snakemake_logs/deeptools_bigwigAverage/{expdir}_{ChIP}_{expconds}_merge{pe}_{norm}.log"
+        "snakemake_logs/deeptools_bigwigAverage/{exp_dir}_{ChIP}_{exp_conds}_merge{pe}_{norm}.log"
     params:
         bs=config.get("deeptools_bigwigAverage_bs", "5")
     run:
-        if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
+        if nobl_tag: # conditional run section + using new wildcard from T Booth
             bl_file = "-bl " + config["excluded_regions"]
         else:
             bl_file = ""
@@ -717,16 +724,16 @@ rule deeptools_bigwigAverage:
 
 rule deeptools_bigwigCompare:
     input:
-        trt="DATA/BIGWIG/{expdir}/{ChIP}_{expconds}_{rep}{pe}_{norm}.bw",
-        ctl="DATA/BIGWIG/{expdir}/Input_{expconds}{pe}_{norm}.bw"
+        trt="DATA/BIGWIG/{exp_dir}/{ChIP}_{exp_conds}_{rep}{pe}_{norm}.bw",
+        ctl="DATA/BIGWIG/{exp_dir}/Input_{exp_conds}{pe}_{norm}.bw"
     output:
-        "DATA/BIGWIG/{expdir}/{ChIP}_{expconds}_{rep}{pe}_{norm}_inorm.bw"
+        "DATA/BIGWIG/{exp_dir}/{ChIP}_{exp_conds}_{rep}{pe}_{norm}_inorm.bw"
     log:
-        "snakemake_logs/deeptools_bigwigCompare/{expdir}_{ChIP}_{expconds}_{rep}{pe}_{norm}.log"
+        "snakemake_logs/deeptools_bigwigCompare/{exp_dir}_{ChIP}_{exp_conds}_{rep}{pe}_{norm}.log"
     params:
         bs=config.get("deeptools_bamCompare_bs", "5")
     run:
-        if "excluded_regions" in config: # conditional run section + using new wildcard from T Booth
+        if nobl_tag: # conditional run section + using new wildcard from T Booth
             bl_file = "-bl " + config["excluded_regions"]
         else:
             bl_file = ""
@@ -738,13 +745,13 @@ rule deeptools_bigwigCompare:
 
 rule macs3_callpeak_se:
     input:
-        trt="DATA/BED/{expdir}/{ChIP}_{expconds}_{rep}_filterdup_filterchr.bed",
-        prd="DATA/BED/{expdir}/{ChIP}_{expconds}_{rep}_predictd.bed",
-        ctl="DATA/BED/{expdir}/Input_{expconds}_filterdup_filterchr.bed" 
+        trt="DATA/BED/{exp_dir}/{ChIP}_{exp_conds}_{rep}_filterdup_filterchr.bed",
+        prd="DATA/BED/{exp_dir}/{ChIP}_{exp_conds}_{rep}_predictd.bed",
+        ctl="DATA/BED/{exp_dir}/Input_{exp_conds}_filterdup_filterchr.bed" 
     output:
-        "DATA/PEAKS/{expdir}/{ChIP}_{expconds}_{rep}_q{qval}_peaks.narrowPeak"
+        "DATA/PEAKS/{exp_dir}/{ChIP}_{exp_conds}_{rep}_q{qval}_peaks.narrowPeak"
     log:
-        "snakemake_logs/macs3_callpeak/{expdir}_{ChIP}_{expconds}_{rep}_q{qval}.log"
+        "snakemake_logs/macs3_callpeak/{exp_dir}_{ChIP}_{exp_conds}_{rep}_q{qval}.log"
     params:
         g=config.get("macs3_callpeak_g", "hs")
     run:
@@ -760,18 +767,18 @@ rule macs3_callpeak_se:
             real_qval = float("0."+wildcards.qval)
         else:
             real_qval = float(wildcards.qval)
-        shell("macs3 callpeak -f BED -t {input.trt} -c {input.ctl} -n {wildcards.ChIP}_{wildcards.expconds}_{wildcards.rep}_q{wildcards.qval} --outdir DATA/PEAKS/{wildcards.expdir}/ "
+        shell("macs3 callpeak -f BED -t {input.trt} -c {input.ctl} -n {wildcards.ChIP}_{wildcards.exp_conds}_{wildcards.rep}_q{wildcards.qval} --outdir DATA/PEAKS/{wildcards.exp_dir}/ "
         "--nomodel --extsize $(cat {input.prd}) " # finds fragment size from output of macs3 predictd
         "-g {params.g} -q {real_qval}{max_gap}{min_length} 2>{log}")
 
 rule macs3_callpeak_pe:
     input:
-        trt="DATA/BED/{expdir}/{ChIP}_{expconds}_{rep}_pe_filterdup_filterchr.bed",
-        ctl="DATA/BED/{expdir}/Input_{expconds}_pe_filterdup_filterchr.bed" 
+        trt="DATA/BED/{exp_dir}/{ChIP}_{exp_conds}_{rep}_pe_filterdup_filterchr.bed",
+        ctl="DATA/BED/{exp_dir}/Input_{exp_conds}_pe_filterdup_filterchr.bed" 
     output:
-        "DATA/PEAKS/{expdir}/{ChIP}_{expconds}_{rep}_pe_q{qval}_peaks.narrowPeak"
+        "DATA/PEAKS/{exp_dir}/{ChIP}_{exp_conds}_{rep}_pe_q{qval}_peaks.narrowPeak"
     log:
-        "snakemake_logs/macs3_callpeak/{expdir}_{ChIP}_{expconds}_{rep}_pe_q{qval}.log"
+        "snakemake_logs/macs3_callpeak/{exp_dir}_{ChIP}_{exp_conds}_{rep}_pe_q{qval}.log"
     params:
         g=config.get("macs3_callpeak_g", "hs")
     run:
@@ -787,18 +794,18 @@ rule macs3_callpeak_pe:
             real_qval = float("0."+wildcards.qval)
         else:
             real_qval = float(wildcards.qval)
-        shell("macs3 callpeak -f BEDPE -t {input.trt} -c {input.ctl} -n {wildcards.ChIP}_{wildcards.expconds}_{wildcards.rep}_pe_q{wildcards.qval} --outdir DATA/PEAKS/{wildcards.expdir}/ "
+        shell("macs3 callpeak -f BEDPE -t {input.trt} -c {input.ctl} -n {wildcards.ChIP}_{wildcards.exp_conds}_{wildcards.rep}_pe_q{wildcards.qval} --outdir DATA/PEAKS/{wildcards.exp_dir}/ "
         "-g {params.g} -q {real_qval}{max_gap}{min_length} 2>{log}")
 
 rule macs3_callbroadpeak_se:
     input:
-        trt="DATA/BED/{expdir}/{ChIP}_{expconds}_{rep}_filterdup_filterchr.bed",
-        prd="DATA/BED/{expdir}/{ChIP}_{expconds}_{rep}_predictd.bed",
-        ctl="DATA/BED/{expdir}/Input_{expconds}_filterdup_filterchr.bed" 
+        trt="DATA/BED/{exp_dir}/{ChIP}_{exp_conds}_{rep}_filterdup_filterchr.bed",
+        prd="DATA/BED/{exp_dir}/{ChIP}_{exp_conds}_{rep}_predictd.bed",
+        ctl="DATA/BED/{exp_dir}/Input_{exp_conds}_filterdup_filterchr.bed" 
     output:
-        "DATA/PEAKS/{expdir}/{ChIP}_{expconds}_{rep}_q{qval}_peaks.broadPeak"
+        "DATA/PEAKS/{exp_dir}/{ChIP}_{exp_conds}_{rep}_q{qval}_peaks.broadPeak"
     log:
-        "snakemake_logs/macs3_callbroadpeak/{expdir}_{ChIP}_{expconds}_{rep}_q{qval}.log"
+        "snakemake_logs/macs3_callbroadpeak/{exp_dir}_{ChIP}_{exp_conds}_{rep}_q{qval}.log"
     params:
         g=config.get("macs3_callbroadpeak_g", "hs")
     run:
@@ -814,18 +821,18 @@ rule macs3_callbroadpeak_se:
             real_qval = float("0."+wildcards.qval)
         else:
             real_qval = float(wildcards.qval)
-        shell("macs3 callpeak -f BED -t {input.trt} -c {input.ctl} -n {wildcards.ChIP}_{wildcards.expconds}_{wildcards.rep}_q{wildcards.qval} --outdir DATA/PEAKS/{wildcards.expdir}/ "
+        shell("macs3 callpeak -f BED -t {input.trt} -c {input.ctl} -n {wildcards.ChIP}_{wildcards.exp_conds}_{wildcards.rep}_q{wildcards.qval} --outdir DATA/PEAKS/{wildcards.exp_dir}/ "
         "--nomodel --extsize $(cat {input.prd}) " # finds fragment size from output of macs3 predictd
         "-g {params.g} --broad --broad-cutoff {real_qval}{max_gap}{min_length} 2>{log}")
 
 rule macs3_callbroadpeak_pe:
     input:
-        trt="DATA/BED/{expdir}/{ChIP}_{expconds}_{rep}_pe_filterdup_filterchr.bed",
-        ctl="DATA/BED/{expdir}/Input_{expconds}_pe_filterdup_filterchr.bed" 
+        trt="DATA/BED/{exp_dir}/{ChIP}_{exp_conds}_{rep}_pe_filterdup_filterchr.bed",
+        ctl="DATA/BED/{exp_dir}/Input_{exp_conds}_pe_filterdup_filterchr.bed" 
     output:
-        "DATA/PEAKS/{expdir}/{ChIP}_{expconds}_{rep}_pe_q{qval}_peaks.broadPeak"
+        "DATA/PEAKS/{exp_dir}/{ChIP}_{exp_conds}_{rep}_pe_q{qval}_peaks.broadPeak"
     log:
-        "snakemake_logs/macs3_callbroadpeak/{expdir}_{ChIP}_{expconds}_{rep}_pe_q{qval}.log"
+        "snakemake_logs/macs3_callbroadpeak/{exp_dir}_{ChIP}_{exp_conds}_{rep}_pe_q{qval}.log"
     params:
         g=config.get("macs3_callbroadpeak_g", "hs")
     run:
@@ -841,17 +848,17 @@ rule macs3_callbroadpeak_pe:
             real_qval = float("0."+wildcards.qval)
         else:
             real_qval = float(wildcards.qval)
-        shell("macs3 callpeak -f BEDPE -t {input.trt} -c {input.ctl} -n {wildcards.ChIP}_{wildcards.expconds}_{wildcards.rep}_pe_q{wildcards.qval} --outdir DATA/PEAKS/{wildcards.expdir}/ "
+        shell("macs3 callpeak -f BEDPE -t {input.trt} -c {input.ctl} -n {wildcards.ChIP}_{wildcards.exp_conds}_{wildcards.rep}_pe_q{wildcards.qval} --outdir DATA/PEAKS/{wildcards.exp_dir}/ "
         "-g {params.g} --broad --broad-cutoff {real_qval}{max_gap}{min_length} 2>{log}")
         
 rule macs3_bdgcmp_pileup:
     input:
-        trt="DATA/BED/{expdir}/{ChIP}_{expconds}_{rep}{pe}_pileup_sort_norm10M.bedGraph",
-        ctl="DATA/BED/{expdir}/Input_{expconds}{pe}_pileup_sort_norm10M_nozero.bedGraph" 
+        trt="DATA/BED/{exp_dir}/{ChIP}_{exp_conds}_{rep}{pe}_pileup_sort_norm10M.bedGraph",
+        ctl="DATA/BED/{exp_dir}/Input_{exp_conds}{pe}_pileup_sort_norm10M_nozero.bedGraph" 
     output:
-        "DATA/BED/{expdir}/{ChIP}_{expconds}_{rep}{pe}_qval.bedGraph"
+        "DATA/BED/{exp_dir}/{ChIP}_{exp_conds}_{rep}{pe}_qval.bedGraph"
     log:
-        "snakemake_logs/macs3_bdgcmp_pileup/{expdir}_{ChIP}_{expconds}_{rep}{pe}.log"
+        "snakemake_logs/macs3_bdgcmp_pileup/{exp_dir}_{ChIP}_{exp_conds}_{rep}{pe}.log"
     params:
         m=config.get("macs3_bdgcmp_pileup_m", "qpois")
     shell:
@@ -876,23 +883,33 @@ rule macs3_bdgpeakcall:
 
 rule bedtools_intersect:
     input:
-        p1="DATA/PEAKS/{expdir}/{ChIP}_{expconds}_{rep1}{pe}_{cutoff}_{type}Peak",
-        p2="DATA/PEAKS/{expdir}/{ChIP}_{expconds}_{rep2}{pe}_{cutoff}_{type}Peak"
+        p1="DATA/PEAKS/{exp_dir}/{ChIP}_{exp_conds}_{rep1}{pe}_{cutoff}"+nobl_tag+"_{type}Peak",
+        p2="DATA/PEAKS/{exp_dir}/{ChIP}_{exp_conds}_{rep2}{pe}_{cutoff}"+nobl_tag+"_{type}Peak"
     output:
-        "DATA/PEAKS/{expdir}/{ChIP}_{expconds}_{rep1}_inter_{rep2}{pe}_{cutoff}_{type}Peak"
+        "DATA/PEAKS/{exp_dir}/{ChIP}_{exp_conds}_{rep1}_inter_{rep2}{pe}_{cutoff}"+nobl_tag+"_{type}Peak"
     log:
-        "snakemake_logs/bedtools_intersect/{expdir}_{ChIP}_{expconds}_{rep1}_inter_{rep2}{pe}_{cutoff}_{type}.log"
+        "snakemake_logs/bedtools_intersect/{exp_dir}_{ChIP}_{exp_conds}_{rep1}_inter_{rep2}{pe}_{cutoff}"+nobl_tag+"_{type}.log"
     shell:
         "bedtools intersect -a {input.p1} -b {input.p2} > {output}"
+
+rule bedtools_intersect_blacklist_peaks:
+    input:
+        "DATA/PEAKS/{sample}_peaks.{type}Peak"
+    output:
+        "DATA/PEAKS/{sample}_nobl_peaks.{type}Peak"
+    log:
+        "bedtools_intersect_blacklist_peaks/{sample}_nobl_peaks_{type}.log"
+    shell:
+        "bedtools intersect -v -a {input} -b "+config["excluded_regions"]+" > {output}"
 
 rule multimapbw:
     input:
         p=get_multimapbw_peaks,
         b=get_multimapbw_merged_bigwigs 
     output:
-        "DATA/BED/{expdir}/{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_merged_bigwigs_mmb.csv"
+        "DATA/BED/{exp_dir}/{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_merged_bigwigs_mmb.csv"
     log:
-        "snakemake_logs/multimapbw/{expdir}_mmb_{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
+        "snakemake_logs/multimapbw/{exp_dir}_mmb_{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
     shell:
         "SCRIPTS/multimapbw"+macos_suffix+".sh {input.p} :: {input.b} > {output}"
 
@@ -901,30 +918,30 @@ rule multimapbw_indiv:
         p=get_multimapbw_peaks,
         b=get_multimapbw_indiv_bigwigs 
     output:
-        "DATA/BED/{expdir}/{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_mmb.csv"
+        "DATA/BED/{exp_dir}/{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_mmb.csv"
     log:
-        "snakemake_logs/multimapbw_indiv/{expdir}_mmb_{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
+        "snakemake_logs/multimapbw_indiv/{exp_dir}_mmb_{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
     shell:
         "SCRIPTS/multimapbw"+macos_suffix+".sh {input.p} :: {input.b} > {output}"
 
 rule calculate_multimapbw_indiv_scores:
     input:
-        "DATA/BED/{expdir}/{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_mmb.csv"
+        "DATA/BED/{exp_dir}/{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_mmb.csv"
     output:
-        "DATA/BED/{expdir}/{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_scores_mmb.csv"
+        "DATA/BED/{exp_dir}/{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_scores_mmb.csv"
     log:
-        "snakemake_logs/multimapbw_indiv/{expdir}_mmb_{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
+        "snakemake_logs/multimapbw_indiv/{exp_dir}_mmb_{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
     run:
         effect_size_mmb(input[0], output[0])
 
 rule concat_multimapbw_indiv_scores:
     input:
-        m="DATA/BED/{expdir}/{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_merged_bigwigs_mmb.csv",
-        s="DATA/BED/{expdir}/{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_scores_mmb.csv"
+        m="DATA/BED/{exp_dir}/{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_merged_bigwigs_mmb.csv",
+        s="DATA/BED/{exp_dir}/{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_indiv_bigwigs_scores_mmb.csv"
     output:
-        "DATA/BED/{expdir}/{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_merged_bigwigs_scores_mmb.csv"
+        "DATA/BED/{exp_dir}/{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_merged_bigwigs_scores_mmb.csv"
     log:
-        "snakemake_logs/multimapbw_indiv/{expdir}_mmb_{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
+        "snakemake_logs/multimapbw_indiv/{exp_dir}_mmb_{ChIP}_q{thrs}_{peaktype}peaks_vs_{bwnorm}_bigwigs.log"
     shell:
         "paste {input.m} {input.s} > {output}"
 
@@ -932,9 +949,9 @@ rule deeptools_bwsummary:
     input:
         get_deeptools_bwsummary_bws
     output:
-        temp("DATA/BIGWIG/{expdir}/{norm}_bwsummary.npz")
+        temp("DATA/BIGWIG/{exp_dir}/{norm}_bwsummary.npz")
     log:
-        "snakemake_logs/deeptools_bwsummary/{expdir}/{norm}.log"
+        "snakemake_logs/deeptools_bwsummary/{exp_dir}/{norm}.log"
     shell:
         "multiBigwigSummary bins --smartLabels -r chr1 -b {input} -o {output}"
 
@@ -942,9 +959,9 @@ rule deeptools_bwsummary_chip:
     input:
         get_deeptools_bwsummary_chip_bws
     output:
-        temp("DATA/BIGWIG/{expdir}/{ChIP}_{norm}_bwsummary.npz")
+        temp("DATA/BIGWIG/{exp_dir}/{ChIP}_{norm}_bwsummary.npz")
     log:
-        "snakemake_logs/deeptools_bwsummary_chip/{expdir}/{ChIP}_{norm}.log"
+        "snakemake_logs/deeptools_bwsummary_chip/{exp_dir}/{ChIP}_{norm}.log"
     shell:
         "multiBigwigSummary bins --smartLabels -r chr1 -b {input} -o {output}"
 
