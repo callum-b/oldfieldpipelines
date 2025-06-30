@@ -233,6 +233,12 @@ Just unzip this on your server, edit run_snakemake_slurm.sh (needs at least your
 
 This will run the rule specified in the script. If you want to run a different rule, you need to edit that script. You'll also see a bunch of other options appended to the command line. Feel free to edit those at your own risk.
 
+If you want to see the progress of the pipeline, you can use the `squeue` command to view all jobs running on the cluster. Use `squeue --user=$USER` to filter it to only include jobs you are running. It's quite hand to use this command a lot, so I recommend saving it as an alias in your ~/.bashrc file by adding in this line:
+
+`alias sq='squeue --user=$USER'`
+
+Now, you can use `sq` as a shortcut to that whole line (you'll probably have to restart your terminal after adding that line though).
+
 # Parameters 
 
 A config.yaml file should be present in the directory in which you unzipped this tarball. It already contains a few parameters required for the pipeline to run, like the path to the genome for alignment.
