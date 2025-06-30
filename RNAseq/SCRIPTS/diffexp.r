@@ -35,7 +35,7 @@ library("tximport")
 library("biomaRt")
 library("TxDb.Hsapiens.UCSC.hg38.knownGene")
 
-out_pref = "names_test_"
+# out_pref = "names_test_" ## for testing
 
 # files = c("D0_1_quant.csv", "D0_2_quant.csv", "D0_3_quant.csv", "D1_1_quant.csv", "D1_2_quant.csv", "D1_3_quant.csv", "D5_1_quant.csv", "D5_2_quant.csv", "D5_3_quant.csv") # locally
 # files = c("DATA/CSV/EXPDIR/D0_1/quant.sf", "DATA/CSV/EXPDIR/D0_2/quant.sf", "DATA/CSV/EXPDIR/D0_3/quant.sf", "DATA/CSV/EXPDIR/D1_1/quant.sf", "DATA/CSV/EXPDIR/D1_2/quant.sf", "DATA/CSV/EXPDIR/D1_3/quant.sf", "DATA/CSV/EXPDIR/D5_1/quant.sf", "DATA/CSV/EXPDIR/D5_2/quant.sf", "DATA/CSV/EXPDIR/D5_3/quant.sf") # thru smk

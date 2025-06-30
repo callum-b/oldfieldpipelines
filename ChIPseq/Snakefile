@@ -898,7 +898,7 @@ rule bedtools_intersect_blacklist_peaks:
     output:
         "DATA/PEAKS/{sample}_nobl_peaks.{type}Peak"
     log:
-        "bedtools_intersect_blacklist_peaks/{sample}_nobl_peaks_{type}.log"
+        "snakemake_logs/bedtools_intersect_blacklist_peaks/{sample}_nobl_peaks_{type}.log"
     shell:
         "bedtools intersect -v -a {input} -b "+config["excluded_regions"]+" > {output}"
 
