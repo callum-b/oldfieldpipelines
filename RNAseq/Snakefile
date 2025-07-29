@@ -328,9 +328,9 @@ rule sort_STAR_output:
         "mv DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_Aligned.toTranscriptome.out.bam {output.tbam} ; "
         "mv DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_SJ.out.tab {output.sjtab} ; "
         "awk '{{if( length($2)>12 ){{exit}} print }}' DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_Signal.UniqueMultiple.str1.out.wig > DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_fixedwig1 ;"
-        "SCRIPTS/wigToBigWig DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_fixedwig1 DATA/GENOMES/HG38_chrom_sizes.tsv {output.umbw1} ; "
+        "SCRIPTS/wigToBigWig DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_fixedwig1 DATA/GENOMES/HG38_chrom_sizes.tsv {output.umbw2} ; "
         "awk '{{if( length($2)>12 ){{exit}} print }}' DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_Signal.UniqueMultiple.str2.out.wig > DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_fixedwig2 ;"
-        "SCRIPTS/wigToBigWig DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_fixedwig2 DATA/GENOMES/HG38_chrom_sizes.tsv {output.umbw2} ; "
+        "SCRIPTS/wigToBigWig DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_fixedwig2 DATA/GENOMES/HG38_chrom_sizes.tsv {output.umbw1} ; "
         "rm -rf DATA/TEMP/v" + genome_release + "/{wildcards.sample_sp}_*"
 
 rule deeptools_bigwigAverage_stranded:
